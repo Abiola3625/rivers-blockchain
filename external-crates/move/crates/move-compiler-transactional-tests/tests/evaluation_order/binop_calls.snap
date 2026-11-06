@@ -1,0 +1,6 @@
+---
+source: crates/move-transactional-test-runner/src/framework.rs
+---
+processed 40 tasks
+
+// Run the tests separately so that we get all the results

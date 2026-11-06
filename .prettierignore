@@ -1,0 +1,22 @@
+# ignore everything by default
+# /*
+# Enable prettier for apps and sdk
+!/apps
+!/.config
+!/*.js
+
+# ignore generated files
+npm-debug.log*
+package-lock.json
+yarn-debug.log*
+.next/
+.swc/
+build/
+coverage/
+dist/
+out/
+generated/
+playwright-report/
+storybook-static/
+CHANGELOG.md
+

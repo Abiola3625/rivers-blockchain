@@ -1,0 +1,1 @@
+The runbook is now at https://docs.sui.io/operators/bridge-node-configuration
