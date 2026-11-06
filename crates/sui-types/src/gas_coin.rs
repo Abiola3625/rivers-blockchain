@@ -33,13 +33,28 @@ pub const RIVERS_GENESIS_SUPPLY_MIST: u64 = 10_000_000 * MIST_PER_SUI;
 /// RVRB paid out as staking rewards over 50 years (10 eras of 5 years, halving each era).
 pub const RIVERS_MINED_SUPPLY_MIST: u64 = 11_000_000 * MIST_PER_SUI;
 
-/// RVRB allocated at genesis to the Rivers foundation and core developers to grow the ecosystem.
-/// It is part of the 10M genesis supply.
-pub const RIVERS_FOUNDATION_MIST: u64 = 2_000_000 * MIST_PER_SUI;
+/// The 10M RVRB genesis supply, as (group, amount, number of wallets).
+/// Each group is split across several wallets so that one compromised key cannot reach the
+/// whole group.
+pub const RIVERS_GENESIS_GROUPS: &[(&str, u64, u64)] = &[
+    ("foundation", 2_000_000 * MIST_PER_SUI, 5),
+    ("ecosystem", 4_000_000 * MIST_PER_SUI, 4),
+    ("community", 2_000_000 * MIST_PER_SUI, 2),
+    ("early-backers", 1_000_000 * MIST_PER_SUI, 1),
+    ("validator-bootstrap", 600_000 * MIST_PER_SUI, 1),
+    ("dex-liquidity", 400_000 * MIST_PER_SUI, 1),
+];
 
-/// The foundation allocation is split across this many wallets so that one compromised key
-/// cannot reach the whole allocation.
-pub const RIVERS_FOUNDATION_WALLETS: u64 = 5;
+const _: () = {
+    let mut sum = 0;
+    let mut i = 0;
+    while i < RIVERS_GENESIS_GROUPS.len() {
+        sum += RIVERS_GENESIS_GROUPS[i].1;
+        i += 1;
+    }
+    assert!(sum == RIVERS_GENESIS_SUPPLY_MIST);
+    assert!(RIVERS_GENESIS_SUPPLY_MIST + RIVERS_MINED_SUPPLY_MIST == TOTAL_SUPPLY_MIST);
+};
 
 // Note: cannot use checked arithmetic here since `const unwrap` is still unstable.
 /// Total supply denominated in Mist
