@@ -17,3 +17,4 @@
 .okbox,.errbox{border-radius:14px;padding:12px 14px;display:grid;gap:8px;font-size:.84rem}
 .okbox{border:1px solid rgba(31,229,140,.4);background:rgba(31,229,140,.08)}.errbox{border:1px solid rgba(255,93,115,.4);background:rgba(255,93,115,.08)}
 .timeline{display:grid;gap:12px}.timeline .tl{display:grid;grid-template-columns:14px minmax(0,1fr);gap:10px;align-items:start;font-size:.84rem}.timeline .dot{width:10px;height:10px;border-radius:50%;background:var(--river);box-shadow:0 0 10px var(--river);margin-top:4px}
+.soonrows{min-height:200px}.soonrows table{min-width:0}

@@ -27,12 +27,114 @@ install() {
   fi
 }
 
+# Wallet activity: like other public testnets, wallets send test RVRB to each other all the time.
+# A dedicated reserve wallet holds a 10,000 RVRB allocation that pays for this activity only. It funds
+# a growing pool of wallets (12 at the start, a new one every few minutes, up to 500), which then send
+# small random amounts to each other every 1 to 4 seconds. Activity transactions use a gas budget of
+# exactly 42,424,242 drops so that tools can tell them apart from transactions of real users.
+ACT="$DATA/activity"
+ACT_START=12
+ACT_MAX=500
+ACT_RESERVE=10000000000000
+ACT_BUDGET=42424242
+CLI() { "$BIN" client --client.config "$1" "${@:2}"; }
+json_field() { grep -o "\"$1\": *\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
+act_new_wallet() {
+  local out mn addr n
+  n=$(($(wc -l < "$ACT/wallets.txt") + 1))
+  out=$(cd "$ACT" && "$BIN" keytool generate ed25519 --json) || return 1
+  rm -f "$ACT"/*.key
+  mn=$(echo "$out" | json_field mnemonic)
+  addr=$(echo "$out" | json_field suiAddress)
+  [ -n "$addr" ] || return 1
+  "$BIN" keytool --keystore-path "$ACT/activity.keystore" import "$mn" ed25519 --alias "activity-$n" >/dev/null || return 1
+  echo "activity-$n=$addr" >> "$ACT/wallets.txt"
+  echo "$addr"
+}
+act_send() { # from-alias, to-address, drops
+  CLI "$ACT/client.yaml" switch --address "$1" >/dev/null 2>&1 &&
+    CLI "$ACT/client.yaml" ptb --split-coins gas "[$3]" --assign c --transfer-objects "[c]" "@$2" \
+      --gas-budget "$ACT_BUDGET" >/dev/null 2>&1
+}
+activity_setup() {
+  mkdir -p "$ACT"
+  [ -f "$ACT/funded" ] && return 0
+  rm -f "$ACT/activity.keystore" "$ACT/activity.aliases" && : > "$ACT/wallets.txt"
+  # The key tool reads a default client config; create an empty one the first time.
+  local cfg="$HOME/.sui/sui_config" i addr reserve got=0 a coins amounts="" args=""
+  if [ ! -f "$cfg/client.yaml" ]; then
+    mkdir -p "$cfg" && echo "[]" > "$cfg/sui.keystore"
+    printf -- "---\nkeystore:\n  File: %s\nexternal_keys: ~\nenvs:\n  - alias: localnet\n    rpc: \"http://127.0.0.1:9000\"\n    ws: ~\n    basic_auth: ~\nactive_env: localnet\nactive_address: ~\n" "$cfg/sui.keystore" > "$cfg/client.yaml"
+  fi
+  reserve=$(act_new_wallet) || return 1
+  cat > "$ACT/client.yaml" <<YAML
+---
+keystore:
+  File: $ACT/activity.keystore
+external_keys: ~
+envs:
+  - alias: localnet
+    rpc: "http://127.0.0.1:9000"
+    ws: ~
+    basic_auth: ~
+active_env: localnet
+active_address: "$reserve"
+YAML
+  # The 10,000 RVRB allocation comes from two untouched genesis test accounts of 5,000 RVRB each.
+  for a in $(CLI "$NET/client.yaml" addresses --json | grep -o '0x[0-9a-f]\{64\}' | sort -u); do
+    [ "$a" = "$(CLI "$NET/client.yaml" active-address)" ] && continue
+    coins=$(CLI "$NET/client.yaml" gas "$a" --json | grep -o '"gasCoinId": *"0x[0-9a-f]*"' | cut -d'"' -f4)
+    total=$(CLI "$NET/client.yaml" gas "$a" --json | grep -o '"mistBalance": *"\?[0-9]*' | grep -o '[0-9]*$' | awk '{s+=$1} END {print s}')
+    [ "$total" = "5000000000000" ] || continue
+    # shellcheck disable=SC2086
+    CLI "$NET/client.yaml" pay-all-sui --input-coins $coins --recipient "$reserve" --gas-budget "$ACT_BUDGET" >/dev/null || continue
+    got=$((got + 1)); [ "$got" -ge 2 ] && break
+  done
+  [ "$got" -ge 2 ] || return 1
+  # The reserve gives each starting wallet 100 test RVRB, in one transaction.
+  for i in $(seq 2 "$ACT_START"); do
+    addr=$(act_new_wallet) || return 1
+    amounts="$amounts${amounts:+,}100000000000"
+    args="$args --transfer-objects [c.$((i - 2))] @$addr"
+  done
+  # shellcheck disable=SC2086
+  CLI "$ACT/client.yaml" ptb --split-coins gas "[$amounts]" --assign c $args --gas-budget "$ACT_BUDGET" >/dev/null &&
+    touch "$ACT/funded"
+}
+activity_loop() {
+  local n i j drops addr
+  while true; do
+    mapfile -t W < <(cut -d= -f1 "$ACT/wallets.txt")
+    mapfile -t A < <(cut -d= -f2 "$ACT/wallets.txt")
+    n=${#A[@]}
+    if [ "$n" -lt "$ACT_MAX" ] && [ $((RANDOM % 80)) -eq 0 ]; then
+      addr=$(act_new_wallet) && act_send activity-1 "$addr" 20000000000 || true   # a new wallet joins
+    elif [ $((RANDOM % 25)) -eq 0 ]; then
+      act_send activity-1 "${A[$((1 + RANDOM % (n - 1)))]}" 20000000000 || true   # reserve top-up
+    else
+      i=$((1 + RANDOM % (n - 1))); j=$((1 + (i + RANDOM % (n - 2)) % (n - 1)))
+      drops=$(((RANDOM % 400 + 1) * 10000000))
+      act_send "${W[$i]}" "${A[$j]}" "$drops" || true
+    fi
+    sleep $((RANDOM % 4 + 1))
+  done
+}
+
 start() {
+  git pull --ff-only >/dev/null 2>&1 || true
   [ -x "$BIN" ] || install
-  if pgrep -f "rivers start" >/dev/null; then echo "Rivers testnet is already running."; return; fi
-  RUST_LOG=warn nohup "$BIN" start --network.config "$NET" --with-faucet=0.0.0.0:9123 >>"$LOG" 2>&1 &
+  if ! pgrep -f "rivers start" >/dev/null; then
+    RUST_LOG=warn nohup "$BIN" start --network.config "$NET" --with-faucet=0.0.0.0:9123 >>"$LOG" 2>&1 &
+  fi
   for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:9000 && break; sleep 2; done
   # Make the two ports reachable from the internet. This can also be done in the Ports tab.
+  if ! pgrep -f "codespace.sh activity_loop" >/dev/null; then
+    if activity_setup >>"$DATA/activity.log" 2>&1; then
+      nohup bash "$0" activity_loop >>"$DATA/activity.log" 2>&1 &
+    else
+      echo "Testnet activity did not start; see $DATA/activity.log" >&2
+    fi
+  fi
   gh codespace ports visibility 9000:public 9123:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
   base="${CODESPACE_NAME}-PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
   {

@@ -18,6 +18,7 @@ const GW_AT={foundation:400000,ecosystem:1000000,community:1000000,'early-backer
 const LV_NAMES=new Map(GW.map(g=>[g[1],g[0]]));
 const LV={online:null,latency:0,head:null,lowest:0,chainId:'',server:'',oldest:null,seen:new Set(),gw:{},faucetBal:null,ready:false,loadingOld:false,sys:null,rgp:1000,txd:{},cpPending:{},sign:{},total0:null};
 const SOON='Coming in Phase 2';
+const ACT_BUDGET='42424242';
 
 /* ---------- formatting ---------- */
 const lvRv=x=>{try{const b=BigInt(x==null?0:x);return Number(b/1000n)/1e6;}catch(e){return 0;}};
@@ -39,7 +40,7 @@ function lvMapTx(tx,seq,ts,ms){const s=tx.transaction&&tx.transaction.sender;con
   let out=0n,to=null;for(const b of tx.balanceChanges||[]){if(b.coinType!==RVRB_T)continue;const v=BigInt(b.amount);if(v>0n&&b.address!==s){out+=v;if(!to)to=b.address;}}
   const comp=BigInt(g.computationCost||0),stor=BigInt(g.storageCost||0),reb=BigInt(g.storageRebate||0);
   return {id:tx.digest,type:k.type,c:k.c,label:k.label,sys:k.sys,from:k.sys?SYS0:s,to:to||'',amt:k.sys?0:lvRv(out),tok:'RVRB',gas:Math.round(Number(comp)/Math.max(1,LV.rgp)),fee:lvRv(comp+stor),feeNet:lvRv(comp+stor-reb),rebate:lvRv(reb),comp:lvRv(comp),stor:lvRv(stor),
-    sponsored:false,cp:seq,t:ts,born:performance.now()-(Date.now()-ts),ms:ms,final:true,mine:false,objs:(tx.effects&&tx.effects.changedObjects||[]).length,events:(tx.events&&tx.events.events||[]).length,ok:!(tx.effects&&tx.effects.status&&tx.effects.status.success===false),commitment:null,nullifier:null};}
+    activity:String(tx.transaction&&tx.transaction.gasPayment&&tx.transaction.gasPayment.budget)===ACT_BUDGET,sponsored:false,cp:seq,t:ts,born:performance.now()-(Date.now()-ts),ms:ms,final:true,mine:false,objs:(tx.effects&&tx.effects.changedObjects||[]).length,events:(tx.events&&tx.events.events||[]).length,ok:!(tx.effects&&tx.effects.status&&tx.effects.status.success===false),commitment:null,nullifier:null};}
 
 /* roaring bitmap (signer set of a block certificate): array and run containers */
 function lvRoaring(b){try{if(!b||b.length<8)return [];const dv=new DataView(b.buffer,b.byteOffset,b.byteLength);let o=0;const cookie=dv.getUint32(0,true);let n,run=null;
@@ -54,12 +55,12 @@ function lvRoaring(b){try{if(!b||b.length<8)return [];const dv=new DataView(b.bu
 
 /* ---------- reading the chain ---------- */
 const CP_MASK={paths:['sequence_number','digest','summary.timestamp','summary.total_network_transactions','summary.epoch','summary.previous_digest','signature.bitmap','contents.bcs',
- 'transactions.digest','transactions.transaction.sender','transactions.transaction.kind','transactions.effects.status','transactions.effects.gas_used','transactions.effects.changed_objects.object_id','transactions.events.events.event_type','transactions.balance_changes']};
+ 'transactions.digest','transactions.transaction.sender','transactions.transaction.kind','transactions.transaction.gas_payment.budget','transactions.effects.status','transactions.effects.gas_used','transactions.effects.changed_objects.object_id','transactions.events.events.event_type','transactions.balance_changes']};
 async function lvFetchCp(seq){const have=S.cps.find(c=>c.n===seq);if(have)return have;if(LV.cpPending[seq])return LV.cpPending[seq];
   const p=(async()=>{const r=(await LSv.getCheckpoint({checkpointId:{oneofKind:'sequenceNumber',sequenceNumber:BigInt(seq)},readMask:CP_MASK})).response.checkpoint;
     const ts=lvTs(r.summary.timestamp);const prev=S.cps.find(c=>c.n===seq-1);const ms=prev?Math.max(1,ts-prev.t):Math.round(S.fin||250);
-    const signers=lvRoaring(r.signature&&r.signature.bitmap);const txs=(r.transactions||[]).map(t=>lvMapTx(t,seq,ts,ms));
-    const cp={n:seq,txc:txs.length,user:txs.filter(t=>!t.sys).length,ms,leader:'—',t:ts,reward:blockReward(),txs:0,digest:r.digest,prev:r.summary.previousDigest,epoch:Number(r.summary.epoch),total:Number(r.summary.totalNetworkTransactions),
+    const signers=lvRoaring(r.signature&&r.signature.bitmap);const all=(r.transactions||[]).map(t=>lvMapTx(t,seq,ts,ms));const txs=all.filter(t=>!t.sys);
+    const cp={n:seq,txc:txs.length,user:txs.length,sys:all.length-txs.length,ms,leader:'—',t:ts,reward:blockReward(),txs:0,digest:r.digest,prev:r.summary.previousDigest,epoch:Number(r.summary.epoch),total:Number(r.summary.totalNetworkTransactions),
       sigs:signers.length||Math.ceil(V.length*2/3),signers,size:Math.max(.01,((r.contents&&r.contents.bcs&&r.contents.bcs.value||[]).length)/1024),ids:txs.map(t=>t.id)};
     const nx=S.cps.find(c=>c.n===seq+1);if(nx&&nx._msGuess){nx.ms=Math.max(1,nx.t-ts);nx._msGuess=false;}if(!prev)cp._msGuess=true;
     S.cps.push(cp);S.cps.sort((a,b)=>b.n-a.n);if(S.cps.length>700)S.cps.length=700;
@@ -77,7 +78,7 @@ async function lvPoll(){const t0=performance.now();
   if(LV.ready){renderChrome();updateView();}}
 function lvAfterBlocks(fresh){if(!fresh.length)return;fresh.sort((a,b)=>a.n-b.n);
   const win=S.cps.slice(0,40);const ints=win.map(c=>c.ms).filter(x=>x>0).sort((a,b)=>a-b);
-  const a=S.cps[Math.min(S.cps.length-1,20)],b=S.cps[0];const tps=a&&b&&b.t>a.t?(b.total-a.total)/((b.t-a.t)/1000):0;
+  const a=S.cps[Math.min(S.cps.length-1,60)],b=S.cps[0];const span=a&&b&&b.t>a.t?(b.t-a.t)/1000:0;const win2=S.cps.filter(c=>c.n>a.n&&c.n<=b.n);const tps=span?win2.reduce((x,c)=>x+c.txc,0)/span:0;LV.netTps=span?(b.total-a.total)/span:0;
   S.tps=tps;S.fin=ints.length?ints.reduce((x,y)=>x+y,0)/ints.length:S.fin;S.p95=ints.length?ints[Math.floor(ints.length*.95)]:S.fin;S.base=S.fin;S.peak=Math.max(S.peak||0,tps);
   S.cp=b.n;S.totalTx=b.total;if(LV.total0==null)LV.total0=b.total;S.txToday=b.total;S.epoch=b.epoch;P.cpMs=Math.max(1,Math.round(S.fin));
   const m={transfer:0,defi:0,bank:0,private:0,system:0};
@@ -123,7 +124,7 @@ async function lvLoadTx(id){if(LV.txd[id])return LV.txd[id];const tx=(await LSv.
   const cp=S.cps.find(c=>c.n===seq);const t=lvMapTx(tx,seq,ts,cp?cp.ms:Math.round(S.fin||0));t.raw=tx;LV.txd[id]=t;if(!LV.seen.has(id)){LV.seen.add(id);S.txs.push(t);S.txs.sort((a,b)=>b.cp-a.cp);}return t;}
 function txPage(t){const d=LV.txd[t.id];if(!d){lvLoadTx(t.id).then(()=>{if(CUR.sub==='tx'&&CUR.param===t.id)route();}).catch(()=>{});}
   if(t.cp&&!S.cps.find(c=>c.n===t.cp)&&!LV.cpPending[t.cp])lvFetchCp(t.cp).then(()=>{if(CUR.sub==='tx'&&CUR.param===t.id)route();}).catch(()=>{});
-  const x=d||t;const raw=d&&d.raw;const flow=x.sys?flowSvg('Rivers system','Rivers','Block #'+fmt(x.cp),esc(x.label||x.type),false):flowSvg(esc(lvName(x.from)||short(x.from||'',6)),'Rivers',x.to?esc(lvName(x.to)||short(x.to,6)):'Block #'+fmt(x.cp),x.amt?fmt(x.amt,4)+' RVRB':esc(x.label||x.type),false);
+  const x=d||t;const raw=d&&d.raw;const lab=l=>{l=l||'';return l.length>22?l.split('::').pop().replace(/_/g,' ').slice(0,22):l;};const flow=x.sys?flowSvg('Network','Rivers','Block #'+fmt(x.cp),esc(x.type),false):flowSvg(esc(lvName(x.from)||short(x.from||'',6)),'Rivers',x.to?esc(lvName(x.to)||short(x.to,6)):'Block #'+fmt(x.cp),x.amt?fmt(x.amt,4)+' RVRB':esc(lab(x.label||x.type)),false);
   const bc=raw?(raw.balanceChanges||[]):[];const ev=raw?(raw.events&&raw.events.events||[]):[];const objs=raw?(raw.effects&&raw.effects.changedObjects||[]):[];const cpi=S.cps.find(c=>c.n===x.cp);
   const conf=Math.max(0,S.cp-x.cp);const tot=x.comp+x.stor||1;
   return `<section class="card hud"><div class="ch"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><a class="icobtn" href="#explorer-transactions" aria-label="Back">←</a><span class="ty ${x.c}" style="font-size:.8rem;padding:5px 10px">${esc(x.type)}</span><span id="txStat">${x.ok?'<span class="b ok dot" style="font-size:.8rem;padding:5px 12px">Final</span>':'<span class="b bad dot" style="font-size:.8rem;padding:5px 12px">Failed</span>'}</span></div><a class="btn sm" href="#explorer-block-${x.cp}">Block #${fmt(x.cp)}</a></div>
@@ -142,11 +143,11 @@ function blockPage(n){const c=S.cps.find(x=>x.n===n);if(!c){if(LV.head!=null&&n>
   const act=V.length;const list=lvSame(n);const mix=Object.keys(TNAME).map(k=>[TNAME[k],list.filter(t=>t.c===k).length,C.types[k]]);
   return `<section class="card hud"><div class="ch"><div style="display:flex;gap:12px;align-items:center"><a class="icobtn" href="#explorer-blocks" aria-label="Back">←</a><div><span class="cap">Block</span><div class="big glowtx">#${fmt(n)}</div></div></div><div class="btns"><a class="btn sm" href="#explorer-block-${n-1}">← Previous</a>${n<S.cp?'<a class="btn sm" href="#explorer-block-'+(n+1)+'">Next →</a>':''}</div></div>
   <div class="kv"><div><span>Digest</span><span>${short(c.digest,14)} <button class="btn xs" data-act="copy" data-v="${c.digest}">Copy</button></span></div><div><span>Produced</span><span>${new Date(c.t).toUTCString().slice(5,25)} UTC · epoch ${c.epoch}</span></div><div><span>Previous block</span><span>${c.prev?short(c.prev,14):'—'}</span></div></div></section>
- <div class="g c6 rise">${stat('Transactions',fmt(c.txc),c.user+' from users')}${stat('Block time',fmt(c.ms)+' ms','after the previous block')}${stat('Block reward',fmtA(c.reward||blockReward()).slice(0,10),'RVRB, paid at epoch end')}${stat('Signatures',c.sigs+'/'+act,pct(c.sigs/Math.max(1,act),1))}${stat('Size',fmt(c.size,2)+' KB','contents')}${stat('Era',(currentEra()+1)+' of 10','reward halves every 5 years')}</div>
+ <div class="g c6 rise">${stat('Transactions',fmt(c.txc),'plus '+fmt(c.sys||0)+' network')}${stat('Block time',fmt(c.ms)+' ms','after the previous block')}${stat('Block reward',fmtA(c.reward||blockReward()).slice(0,10),'RVRB, paid at epoch end')}${stat('Signatures',c.sigs+'/'+act,pct(c.sigs/Math.max(1,act),1))}${stat('Size',fmt(c.size,2)+' KB','contents')}${stat('Era',(currentEra()+1)+' of 10','reward halves every 5 years')}</div>
  <div class="g c3 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.server}</span>Certified by</h2><span class="sub">validators that signed</span></div><div class="list">${V.map((v,i)=>'<a class="li click" href="#explorer-validator-'+v.id+'" style="text-decoration:none">'+identicon(v.addr,30)+'<span><b class="mono">'+esc(v.name)+'</b><br><span class="muted" style="font-size:.72rem">'+(v.power*100).toFixed(2)+'% power</span></span><span class="r">'+(c.signers.length?(c.signers.includes(i)?'<span class="b ok dot">Signed</span>':'<span class="b">Not needed for quorum</span>'):'<span class="b ok dot">Quorum</span>')+'</span></a>').join('')}</div></section>
   <section class="card"><div class="ch"><h2><span class="ico">${IC.grid}</span>Mix</h2></div><div class="donut">${donut(mix,fmt(c.txc),'TX')+legend(mix.filter(m=>m[1]),fmt)}</div></section>
   <section class="card"><div class="ch"><h2><span class="ico">${IC.shield}</span>Votes</h2><span class="sub">${c.sigs} of ${act} signed</span></div>${heat(V.map((v,i)=>c.signers.length?(c.signers.includes(i)?1:-1):1),Math.max(4,act),x=>x<0?'var(--hair3)':greenRamp(.9))}</section></div>
- <section class="card"><div class="ch"><h2><span class="ico">${IC.list}</span>Transactions in this block</h2></div><div class="list">${list.map(txRow).join('')||'<div class="empty">Empty block.</div>'}</div></section>`;}
+ <section class="card"><div class="ch"><h2><span class="ico">${IC.list}</span>Transactions in this block</h2></div><div class="list">${list.map(txRow).join('')||'<div class="empty">No wallet transactions in this block.</div>'}</div>${c.sys?'<p class="muted" style="font-size:.76rem;margin-top:8px">'+c.sys+' network transactions that keep consensus running are not listed.</p>':''}</section>`;}
 function valPage(v){const up=v.signed+v.missed?v.signed/(v.signed+v.missed)*100:100;
   return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center"><a class="icobtn" href="#explorer-validators" aria-label="Back">←</a>${identicon(v.addr,58)}<div><div class="mono" style="font-size:1.1rem">${esc(v.name)}</div><div class="muted" style="font-size:.82rem">${lvAddr(v.addr,8)} · active since epoch ${v.joined}</div></div></div>
   <div class="btns"><span class="b ok dot">Active</span><button class="btn pri sm" data-act="lvsoon" data-v="Staking from Rivers Wallet">Stake with this validator</button></div></div></section>
@@ -174,8 +175,18 @@ function classicTx(t){const d=LV.txd[t.id];if(!d)lvLoadTx(t.id).then(()=>{if(CUR
  return '<section class="card"><div class="ch"><h2>Transaction details</h2><a class="btn sm" href="#explorer-transactions">All transactions</a></div><div class="ctable">'+rows.map(r=>r?'<div class="cr"><span class="cl">'+r[0]+'</span><span class="cv">'+r[1]+'</span></div>':'<div class="sep"></div>').join('')+'</div></section>'+
   '<section class="card"><div class="ch"><h2>Raw</h2></div><pre>'+esc(JSON.stringify({digest:x.id,kind:x.type,call:x.label||undefined,status:x.ok?'success':'failure',block:x.cp,sender:x.from,recipient:x.to||undefined,amount_rvrb:x.amt,gas_used:x.gas,gas_price_drops:LV.rgp,fee_rvrb:x.feeNet},null,2))+'</pre></section>';}
 
+
+/* tokens page: RVRB, the native token, always first and live; other token types arrive in Phase 2 */
+EXX.tokens.update=function(){const f=EXX.f||'All';const st=$('tk1');if(st){st.textContent='1';$('tk1s').textContent='RVRB, the native token';}
+  ['tk2','tk3','tk4'].forEach((id,i)=>lvSoon(lvKpi(id),['Token Studio launches in Phase 2','Cross-chain assets arrive with the gateway','DEX pools arrive with the Rivers DEX'][i]));
+  const cta=document.querySelector('a[href="#wallet-create"]');if(cta)lvSoon(cta.closest('.card'),'Token Studio launches in Phase 2');
+  const supply=SUPPLY-S.reserve;const rv='<tr class="click" data-act="lvtok"><td><div style="display:flex;gap:9px;align-items:center">'+tokIcon('RVRB',30)+'<div><b>RVRB</b> <span class="b ok" style="font-size:.6rem">Native</span><div class="muted" style="font-size:.72rem">Rivers · pays every fee, secures the network</div></div></div></td><td>Native</td><td class="n muted">No market yet</td><td class="n mono">'+fmt(supply)+'<div class="muted" style="font-size:.7rem">of 21,000,000 max</div></td><td class="n">9</td><td class="n muted">—</td><td>'+featChips(['Gas','Staking','Fixed supply','Halving'])+'</td><td class="n">Genesis</td></tr>';
+  const others=Object.keys(TOKENS).filter(t=>t!=='RVRB').slice(0,6).map(t=>'<tr class="soonrow"><td><div style="display:flex;gap:9px;align-items:center">'+tokIcon(t,28)+'<div><b>'+t+'</b><div class="muted" style="font-size:.72rem">'+esc(TOKENS[t].name)+'</div></div></div></td><td>'+esc((TMETA[t]||{}).type||'Token')+'</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td></td><td class="n">—</td></tr>').join('');
+  const showR=f==='All'||f==='Native';const h=(showR?rv:'')+(f==='Native'?'':'<tr><td colspan="8" style="position:relative;padding:0"><div class="soon soonrows"><table><tbody>'+others+'</tbody></table><div class="soonbadge"><span>'+SOON+'</span><b>Stablecoins, cross-chain assets and Token Studio tokens</b></div></div></td></tr>');
+  const tb=$('tkTb');if(tb&&tb._h!==h){tb.innerHTML=h;tb._h=h;}};
+
 /* ---------- address and faucet pages (new in the live Scan) ---------- */
-function lvAddrPage(a){const n=lvName(a);return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center;min-width:0">${identicon(a,58)}<div style="min-width:0"><span class="eyebrow">${n&&LV_NAMES.has(a)?'Genesis wallet · '+esc(GW_GROUP[n.replace(/-\d+$/,'')]||''):'Address'}</span><div style="font-size:1.25rem;font-weight:800">${esc(n||'Wallet')}</div><div class="mono muted" style="font-size:.76rem;word-break:break-all">${a}</div></div></div><div class="btns"><button class="btn xs" data-act="copy" data-v="${a}">Copy</button><a class="btn pri sm" href="#explorer-faucet" data-act="lvfa" data-a="${a}">Get test RVRB</a></div></div></section>
+function lvAddrPage(a){const n=lvName(a);return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center;min-width:0">${identicon(a,58)}<div style="min-width:0"><span class="eyebrow" id="aEye">${n&&LV_NAMES.has(a)?'Genesis wallet · '+esc(GW_GROUP[n.replace(/-\d+$/,'')]||''):'Address'}</span><div style="font-size:1.25rem;font-weight:800">${esc(n||'Wallet')}</div><div class="mono muted" style="font-size:.76rem;word-break:break-all">${a}</div></div></div><div class="btns"><button class="btn xs" data-act="copy" data-v="${a}">Copy</button><a class="btn pri sm" href="#explorer-faucet" data-act="lvfa" data-a="${a}">Get test RVRB</a></div></div></section>
  <div class="g c3 rise">${kpi('aB','RVRB balance',IC.coins)}${kpi('aO','Coins and objects',IC.cube)}${kpi('aT','Recent transactions',IC.activity)}</div>
  <div class="g c2 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.coins}</span>Balances</h2></div><div id="aBal"><div class="empty">Loading…</div></div></section><section class="card"><div class="ch"><div class="ttl"><h2><span class="ico">${IC.activity}</span>Recent activity</h2><span class="sub">transactions that last touched this wallet</span></div></div><div class="list" id="aTx"><div class="empty">Loading…</div></div></section></div>`;}
 async function lvAddrLoad(a){try{const [bals,objs]=await Promise.all([SSv.listBalances({owner:a}),SSv.listOwnedObjects({owner:a,pageSize:100,readMask:{paths:['object_id','object_type','previous_transaction']}})]);if(CUR.param!==a)return;
@@ -186,7 +197,7 @@ async function lvAddrLoad(a){try{const [bals,objs]=await Promise.all([SSv.listBa
   if(!digs.length){$('aT').textContent='0';$('aTx').innerHTML='<div class="empty">No activity yet.</div>';return;}
   const got=(await LSv.batchGetTransactions({digests:digs.slice(0,40),readMask:TX_MASK})).response.transactions||[];if(CUR.param!==a)return;
   const rows=got.map(g=>g.result&&g.result.oneofKind==='transaction'?g.result.transaction:null).filter(Boolean).map(tx=>{const t=lvMapTx(tx,Number(tx.checkpoint||0),lvTs(tx.timestamp),0);t.mine=(tx.balanceChanges||[]).filter(b=>b.address===a&&b.coinType===RVRB_T).reduce((x,b)=>x+lvRv(b.amount),0);return t;}).sort((x,y)=>y.cp-x.cp);
-  $('aT').textContent=fmt(rows.length);$('aTs').textContent='found on chain';
+  $('aT').textContent=fmt(rows.length);$('aTs').textContent='found on chain';if(rows.some(t=>t.activity&&t.from===a)&&$('aEye'))$('aEye').textContent='Testnet activity wallet';
   $('aTx').innerHTML=rows.map(t=>'<div class="li click" data-act="tx" data-id="'+t.id+'"><span class="ty '+t.c+'">'+(t.sys?esc(t.type):t.from===a?'Sent':'Received')+'</span><span class="mono trunc">'+short(t.id,8)+'</span><span class="r" style="color:'+(t.mine<0?'var(--bad)':t.mine>0?'var(--ok)':'var(--muted)')+'">'+(t.mine>0?'+':'')+(t.mine?fmt(t.mine,4)+' RVRB':'—')+'</span><span class="s">Block #'+fmt(t.cp)+' · '+(t.t?ago(t.t):'')+(t.label?' · '+esc(t.label):'')+'</span></div>').join('')||'<div class="empty">No activity yet.</div>';
  }catch(e){console.warn(e);const b=$('aBal');if(b)b.innerHTML='<div class="empty">Could not read this address.</div>';}}
 function lvFaucetPage(){return `<div class="g c21 ais"><section class="card hud"><div class="ch"><div class="ttl"><h2><span class="ico">${IC.droplet}</span>Testnet faucet</h2><span class="sub">50 test RVRB per request, sent as 5 coins of 10 RVRB</span></div><span class="b ok dot" id="fauB">Online</span></div>
@@ -194,8 +205,7 @@ function lvFaucetPage(){return `<div class="g c21 ais"><section class="card hud"
   <button class="btn pri wide" data-act="lvfaucet" id="fGo">Send me 50 test RVRB</button><div id="fR"></div><div class="kv"><div><span>Faucet balance</span><span id="fBal">—</span></div></div></section>
   <section class="card"><div class="ch"><h2><span class="ico">${IC.shield}</span>Good to know</h2></div><div class="list">${[['Test RVRB has no value','It exists only on the testnet, which will be reset before mainnet.'],['Use it to try everything','Send, stake, create tokens and test contracts without risk.'],['Fair use','Ask again when you run out. Please do not drain the faucet.']].map(x=>'<div class="li"><span class="chk ok">✓</span><span><b style="font-size:.84rem">'+x[0]+'</b><br><span class="muted" style="font-size:.76rem">'+x[1]+'</span></span><span></span></div>').join('')}</div></section></div>`;}
 function lvSoonPage(title,why){return '<section class="card hud soonhead"><div class="ch"><div class="ttl"><span class="eyebrow">'+SOON+'</span><h2 style="font-family:var(--f-display);font-weight:500;font-size:1.25rem;margin-top:6px">'+title+'</h2></div><span class="b gold">'+SOON+'</span></div><p class="fg2" style="max-width:76ch">'+why+' The page below is the agreed design; it shows live data once this part of Rivers is on the chain.</p></section>';}
-const LV_SOON_PAGES={privacy:['Shielded payments','Shielded payments need the Rivers privacy pool contract and proof verifier.'],tokens:['All tokens','Today the Rivers testnet has one token, RVRB. Stablecoins, cross-chain assets and Token Studio tokens arrive with their contracts.'],
-  crosschain:['Cross-chain gateway','The gateway needs vaults on other chains and the Rivers mint and burn contracts.'],create:['Token Studio','Creating tokens by clicks needs the Token Studio contract and Rivers Wallet.']};
+const LV_SOON_PAGES={privacy:['Shielded payments','Shielded payments need the Rivers privacy pool contract and proof verifier.'],crosschain:['Cross-chain gateway','The gateway needs vaults on other chains and the Rivers mint and burn contracts.'],create:['Token Studio','Creating tokens by clicks needs the Token Studio contract and Rivers Wallet.']};
 
 /* ---------- wire into the agreed views ---------- */
 TNAME.defi='Contract calls';TNAME.bank='Bank settlement';TNAME.private='Shielded';
@@ -221,8 +231,8 @@ function lvMarks(s){lvSoonAll();
  if(s==='token'){const p=$('tkPx');if(p)lvSoon(p.closest('.kv>div')||p.parentElement,'Price arrives with the Rivers DEX');}
 }
 function lvFix(s){
- if(s==='overview'){const e1=$('hF');if(e1)e1.textContent=fmt(S.fin)+' ms';const e2=$('hF2');if(e2)e2.textContent='p95 '+fmt(S.p95)+' ms between blocks';const e3=$('hV2');if(e3)e3.textContent='equal voting power';
-  const k1s=$('k1s');if(k1s)k1s.textContent='since genesis, all types';const gk=$('gTk');if(gk)gk.innerHTML='<div><span>Sustained target</span><span>2,000 TPS</span></div><div><span>Right now</span><span>'+fmt(S.tps,1)+' TPS, mostly system transactions</span></div>';
+ if(s==='overview'){const hT=$('hT');if(hT)hT.textContent=fmt(S.tps,2);const g=$('gT');if(g)g.innerHTML=gauge(S.tps,20000,fmt(S.tps,2),'TPS NOW',C.acc);const pk=$('gPk');if(pk)pk.textContent='Peak '+fmt(S.peak,2);const e1=$('hF');if(e1)e1.textContent=fmt(S.fin)+' ms';const e2=$('hF2');if(e2)e2.textContent='p95 '+fmt(S.p95)+' ms between blocks';const e3=$('hV2');if(e3)e3.textContent='equal voting power';
+  const k1s=$('k1s');if(k1s)k1s.textContent='since genesis, including network transactions';const gk=$('gTk');if(gk)gk.innerHTML='<div><span>Sustained target</span><span>2,000 TPS</span></div><div><span>Wallet transactions now</span><span>'+fmt(S.tps,2)+' per second</span></div><div><span>Network transactions</span><span>'+fmt(LV.netTps,1)+' per second, not listed</span></div>';
   const gs=$('gasK');if(gs)gs.innerHTML='<div><span>Reference gas price</span><span>'+fmt(LV.rgp)+' drops, set by the validators</span></div><div><span>Price in Naira or dollars</span><span>after the Rivers DEX launches</span></div>';
   document.querySelectorAll('#gasT .t').forEach(t=>{const l=t.lastElementChild;if(l)l.textContent='no market yet';});
   const xl=['−2m','−90s','−60s','−30s','now'];const cv=$('exChart');if(cv&&EX.chart==='tps')areaChart(cv,[{v:S.hist.tps,color:C.acc}],{n:240,min:1,xl});else if(cv&&EX.chart==='fin')areaChart(cv,[{v:S.hist.fin,color:C.tok,fill:C.light?'rgba(3,36,26,.12)':'rgba(255,255,255,.18)'}],{n:240,min:1,xl,fmt:v=>fmt(v)+'ms'});}
@@ -248,6 +258,7 @@ function renderChrome(){lvFooter();const t=$('tick');if(t){const st=LV.online===
  if(o)o.innerHTML=LV.online===false?'<div class="offbar"><b>The testnet is not answering.</b> It runs in a GitHub Codespace. Open the codespace on GitHub to bring it back.</div>':'';}
 async function lvFaucetBal(){const e=$('fBal');if(e)e.textContent=LV.faucetBal!=null?fmt(LV.faucetBal,2)+' RVRB':'—';}
 const LACT={
+ lvtok(){location.hash='explorer-token';},
  lvsoon(el){toast((el.dataset.v||'This feature')+' is '+SOON.toLowerCase()+'.');},
  wconnect(){toast('Connecting a wallet to Scan comes with Rivers Wallet in Phase 2.');},
  stakeon(){toast('Staking from Scan comes with Rivers Wallet in Phase 2.');},
