@@ -1,0 +1,11 @@
+{
+  "name": "rivers-scan",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Rivers Scan: live explorer for the Rivers testnet",
+  "scripts": {
+    "build": "mkdir -p dist && cp public/* dist/ && cp src/styles.css src/live.css src/helpers.js dist/ && esbuild src/main.js --bundle --format=esm --minify --target=es2020 --outfile=dist/app.js"
+  },
+  "dependencies": { "@mysten/sui": "^2.39.0" },
+  "devDependencies": { "esbuild": "^0.28.2" }
+}
