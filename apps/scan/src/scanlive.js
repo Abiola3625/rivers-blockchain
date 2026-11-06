@@ -316,7 +316,7 @@ const LACT={
 };
 
 /* ---------- boot ---------- */
-async function lvBoot(){Object.assign(ACTS,LACT);EX.txView=EX.txView||'table';
+async function lvBoot(){Object.assign(ACTS,LACT);EX.txView='live';
  V.length=0;S.cps=[];S.txs=[];S.pays=[];S.arcs=[];S.xc=[];S.alerts=[];S.mix={transfer:0,defi:0,bank:0,private:0,system:0};S.mixHist=[];S.finHist=new Array(12).fill(0);S.hist={tps:[],fin:[],t:[]};
  S.tps=0;S.fin=0;S.p95=0;S.peak=0;S.halted=false;S.load=0;S.connected=false;S.W.mine=[];S.light=0;S.accounts=0;S.totalTx=0;S.txToday=0;S.feesToday=0;S.cp=0;S.reserve=MINED;S.emitted=0;
  $('root').innerHTML='<div class="lvload">'+logoSvg(64)+'<b>Rivers Scan</b><span>Connecting…</span></div>';

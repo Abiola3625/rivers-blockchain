@@ -15,7 +15,8 @@ function idxCalendar(){const now=new Date();const days=[];for(let i=6;i>=0;i--){
   const mx=Math.max(1,...grid.flat());const wd=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   return '<div class="cal">'+grid.map((row,i)=>{const d=days[i];const lab=wd[d.getDay()];return '<span>'+lab+'</span>'+row.map((v,h)=>'<i style="background:'+(v?greenRamp(Math.max(.08,v/mx)):'var(--hair)')+'" title="'+lab+' '+d.getDate()+' · '+String(h).padStart(2,'0')+':00 · '+fmt(v)+' wallet transaction'+(v===1?'':'s')+'"></i>').join('');}).join('')
    +'<span></span>'+Array.from({length:24},(_,h)=>'<span style="text-align:center">'+(h%6===0?String(h).padStart(2,'0'):'')+'</span>').join('')+'</div>';}
-function idxFill(){if(!IDX.ok||!IDX.sum)return;const s=IDX.sum;
+function idxFill(){if(CUR&&CUR.sub==='transactions'){const t2=$('t2');if(t2){if(IDX.ok&&IDX.sum){t2.textContent=compact(IDX.sum.tx24h);set2('t2s','Last 24 hours');}else{const c=lvKpi('t2');const cap=c&&c.querySelector('.cap');if(cap)cap.textContent='Total transactions';}}}
+ if(!IDX.ok||!IDX.sum)return;const s=IDX.sum;
   if(CUR.sub==='overview'){const k=$('k2');if(k){idxUnsoon(lvKpi('k2'));k.textContent=fmt(s.accounts);const ks=$('k2s');if(ks)ks.textContent=fmt(s.active24h)+' active in the last 24 hours';}
    const c=$('cal');if(c){idxUnsoon(lvCard('cal'));c.innerHTML=idxCalendar();const sub=c.closest('.card').querySelector('.sub');if(sub)sub.textContent='Wallet transactions, last 7 days';}}}
 
