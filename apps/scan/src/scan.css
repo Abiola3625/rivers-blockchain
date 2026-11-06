@@ -1,0 +1,19 @@
+/* ---------- live Scan additions ---------- */
+.alink{color:var(--river);text-decoration:none}.alink:hover{text-decoration:underline}
+.soon{position:relative;isolation:isolate}
+.soon{min-height:150px}.kpi.soon{min-height:0}
+.soon>*:not(.soonbadge){filter:blur(4px) grayscale(.5);opacity:.42;pointer-events:none;user-select:none}
+.soonbadge{position:absolute;inset:0;z-index:3;display:grid;place-content:center;justify-items:center;gap:6px;text-align:center;padding:12px;pointer-events:none}
+.soonbadge span{font:700 .6rem var(--f-mono);letter-spacing:.16em;color:var(--river)}
+.soonbadge b{font:800 .74rem var(--f-body);color:var(--fg);background:var(--card2);border:1px solid var(--hair3);border-radius:999px;padding:7px 14px;max-width:min(92%,360px);box-shadow:0 10px 30px -12px rgba(0,0,0,.6)}
+.kpi .soonbadge{gap:4px}.kpi .soonbadge b{font-size:.66rem;padding:5px 10px}
+.soonwrap{display:grid;gap:18px;filter:blur(3px) grayscale(.45);opacity:.5;pointer-events:none;user-select:none}
+.soonhead{border-color:rgba(31,229,140,.45)}
+.mapnote{position:absolute;right:18px;top:18px;z-index:3;font:700 .68rem var(--f-body);color:var(--fg2);background:var(--glass);border:1px solid var(--hair2);border-radius:999px;padding:6px 12px;backdrop-filter:blur(8px)}
+@media (max-width:760px){.mapnote{display:none}}
+.offbar{max-width:1480px;margin:12px auto 0;padding:12px 16px;border-radius:14px;border:1px solid rgba(255,93,115,.4);background:rgba(255,93,115,.08);font-size:.84rem;width:calc(100% - 32px)}
+.lvload{min-height:100vh;display:grid;place-content:center;justify-items:center;gap:12px;color:var(--fg2)}.lvload b{font-family:var(--f-display);font-size:1.3rem;color:var(--fg)}
+.lvload svg{animation:lvpulse 1.6s ease-in-out infinite}@keyframes lvpulse{50%{transform:scale(.92);opacity:.7}}
+.okbox,.errbox{border-radius:14px;padding:12px 14px;display:grid;gap:8px;font-size:.84rem}
+.okbox{border:1px solid rgba(31,229,140,.4);background:rgba(31,229,140,.08)}.errbox{border:1px solid rgba(255,93,115,.4);background:rgba(255,93,115,.08)}
+.timeline{display:grid;gap:12px}.timeline .tl{display:grid;grid-template-columns:14px minmax(0,1fr);gap:10px;align-items:start;font-size:.84rem}.timeline .dot{width:10px;height:10px;border-radius:50%;background:var(--river);box-shadow:0 0 10px var(--river);margin-top:4px}

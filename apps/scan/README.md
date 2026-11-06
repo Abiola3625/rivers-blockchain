@@ -1,13 +1,15 @@
 # Rivers Scan
 
-Live explorer for the Rivers testnet: blocks, transactions (classic and live view), addresses,
-validators, RVRB supply and halving, genesis wallets and the test faucet. It reads the chain over
-gRPC-Web from the testnet RPC, so it runs as a static site.
+The public explorer for the Rivers testnet, live at the Netlify site connected to this repository.
 
-- Live site: https://rivers-scan.netlify.app
-- Change the RPC address on the **Network** page, or open the site with `?rpc=<address>&faucet=<address>`.
+- `design/` is the agreed Rivers interface (the preview), unchanged.
+- `src/scanlive.js` replaces the preview's simulation with real chain data read over gRPC-Web, and
+  marks sections whose contracts are not on the chain yet as "Coming in Phase 2".
+- `src/scanshell.js` is the preview shell limited to Rivers Scan.
+
+Change the RPC address on any page with `?rpc=<address>&faucet=<address>`.
 
 ```bash
 npm install
-npm run build   # writes dist/, which Netlify publishes
+npm run build   # writes dist/
 ```

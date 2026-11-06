@@ -1,0 +1,272 @@
+/* ===================== RIVERS SCAN · LIVE ENGINE =====================
+   The agreed Scan design, fed by the real Rivers testnet over gRPC-Web.
+   The simulation in core.js never runs here; this file writes real chain data into the same
+   state the pages read (S, V, P), and marks sections with no chain data yet as "Coming in Phase 2". */
+const LV_DEF_RPC='https://psychic-guide-xvpv4rvg4pjhw54-9000.app.github.dev';
+const lvStore={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}}};
+const lvQS=new URLSearchParams(location.search);
+const LV_RPC=(lvQS.get('rpc')||lvStore.get('rvScanRpc')||LV_DEF_RPC).replace(/\/+$/,'');
+const LV_FAUCET=(lvQS.get('faucet')||lvStore.get('rvScanFaucet')||LV_RPC.replace(/-9000\./,'-9123.')).replace(/\/+$/,'');
+const lvClient=new SuiGrpcClient({network:'testnet',baseUrl:LV_RPC});
+const LSv=lvClient.ledgerService,SSv=lvClient.stateService;
+const RVRB_T='0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI';
+const SYS0='0x0000000000000000000000000000000000000000000000000000000000000000';
+const LV_FAUCET_ADDR='0xdd5c04e0399b0970caa2b060e88a7019b850fd4adecc37de54ed74a085b645bd';
+const GW=[['foundation-1','0x07a8281075e73de243207fc153ef50b49639b1ad2248a6948c1c24d4deb2c2e2'],['foundation-2','0x427538b95b648603c6df38147c0a7a6c7faf5a4b84852ea11efb5534bb1a0cdb'],['foundation-3','0x330dbde1b6613d92f3c1471906c7f1ae586d6efd8f830669ab205b986774c904'],['foundation-4','0x3796fb0a8e8d56d5364864c3ba2a456bca55c3c7e688c9c6c2ed03041b20cc33'],['foundation-5','0x4d378d8724487410d9ae5690b34cf01e5da5f2f575a53903eeba461b78e9c044'],['ecosystem-1','0x79278fc360728f04f0aba3727be8d70c2d4c38cd4abda4a89f6bea001e8c16ba'],['ecosystem-2','0x80dad1f51ac32fa49279124dfec476793e0d1e2e3a63d5cf63adf17a0723bd2e'],['ecosystem-3','0x36e753d87ae5852b3635446775ce3324c42b9a6e69adb1cda479677372030264'],['ecosystem-4','0xf1f7a296b87689504d6093457f0e63d79d0596f253a55a0163b81726d0630b9b'],['community-1','0x86da6f0bb1b0f3ec8df6a14d5b432dc76741caf8a77d91ff3cba9b394fc179a0'],['community-2','0xce662b18c4a8d69b16e2a103dba34cc749eb887de7cb250baf0a03a1afdf1a81'],['early-backers-1','0xb746ef31ec841b20466f8accb154facadc835253a3980922d463a815013cb12f'],['validator-bootstrap-1','0x6e58dc3e70e7ed4bf493cc48ecf05df156ee7ddd2cebd5683c49090908ac4be1'],['dex-liquidity-1','0x8ae1a07107be02909783ead89a84b7d17b0a81c03042d8ba0624088cbeb222f3']];
+const GW_GROUP={foundation:'Foundation and developers',ecosystem:'Ecosystem and grants',community:'Community','early-backers':'Early backers','validator-bootstrap':'Validator bootstrap','dex-liquidity':'DEX liquidity'};
+const GW_AT={foundation:400000,ecosystem:1000000,community:1000000,'early-backers':1000000,'validator-bootstrap':600000,'dex-liquidity':400000};
+const LV_NAMES=new Map(GW.map(g=>[g[1],g[0]]));
+const LV={online:null,latency:0,head:null,lowest:0,chainId:'',server:'',oldest:null,seen:new Set(),gw:{},faucetBal:null,ready:false,loadingOld:false,sys:null,rgp:1000,txd:{},cpPending:{},sign:{},total0:null};
+const SOON='Coming in Phase 2';
+
+/* ---------- formatting ---------- */
+const lvRv=x=>{try{const b=BigInt(x==null?0:x);return Number(b/1000n)/1e6;}catch(e){return 0;}};
+const lvTs=t=>t?Number(t.seconds)*1000+Math.floor((t.nanos||0)/1e6):0;
+const lvName=a=>LV_NAMES.get(a)||(a===SYS0?'Rivers system':a===LV_FAUCET_ADDR?'Testnet faucet':null);
+const lvAddr=(a,k)=>a?'<a class="mono alink" href="#explorer-address-'+a+'">'+esc(lvName(a)||short(a,k||6))+'</a>':'<span class="dim">—</span>';
+const lvNorm=a=>/^0x[0-9a-fA-F]{1,64}$/.test(a)?'0x'+a.slice(2).toLowerCase().padStart(64,'0'):null;
+
+/* ---------- classify real transactions into the design's types ---------- */
+const LV_SYS={consensusCommitPrologue:'Consensus commit',consensusCommitPrologueV2:'Consensus commit',consensusCommitPrologueV3:'Consensus commit',consensusCommitPrologueV4:'Consensus commit',randomnessStateUpdate:'Randomness update',changeEpoch:'Epoch change',endOfEpoch:'Epoch change',genesis:'Genesis',authenticatorStateUpdate:'Login keys update'};
+function lvKind(tx){const d=tx&&tx.transaction&&tx.transaction.kind&&tx.transaction.kind.data;const k=d&&d.oneofKind||'';const snd=tx.transaction&&tx.transaction.sender;
+  if(k==='programmableTransaction'){const cmds=d.programmableTransaction.commands.map(c=>c.command);const mc=cmds.find(c=>c.oneofKind==='moveCall');
+    if(snd===SYS0)return {c:'system',type:'Settlement',label:mc?mc.moveCall.module+'::'+mc.moveCall.function:'',sys:true};
+    if(mc)return {c:'defi',type:'Contract call',label:mc.moveCall.module+'::'+mc.moveCall.function,sys:false};
+    if(cmds.some(c=>c.oneofKind==='publish'))return {c:'defi',type:'Publish',label:'new package',sys:false};
+    return {c:'transfer',type:'Transfer',label:'',sys:false};}
+  return {c:'system',type:LV_SYS[k]||'System',label:'',sys:true};}
+function lvMapTx(tx,seq,ts,ms){const s=tx.transaction&&tx.transaction.sender;const k=lvKind(tx);const g=tx.effects&&tx.effects.gasUsed||{};
+  let out=0n,to=null;for(const b of tx.balanceChanges||[]){if(b.coinType!==RVRB_T)continue;const v=BigInt(b.amount);if(v>0n&&b.address!==s){out+=v;if(!to)to=b.address;}}
+  const comp=BigInt(g.computationCost||0),stor=BigInt(g.storageCost||0),reb=BigInt(g.storageRebate||0);
+  return {id:tx.digest,type:k.type,c:k.c,label:k.label,sys:k.sys,from:k.sys?SYS0:s,to:to||'',amt:k.sys?0:lvRv(out),tok:'RVRB',gas:Math.round(Number(comp)/Math.max(1,LV.rgp)),fee:lvRv(comp+stor),feeNet:lvRv(comp+stor-reb),rebate:lvRv(reb),comp:lvRv(comp),stor:lvRv(stor),
+    sponsored:false,cp:seq,t:ts,born:performance.now()-(Date.now()-ts),ms:ms,final:true,mine:false,objs:(tx.effects&&tx.effects.changedObjects||[]).length,events:(tx.events&&tx.events.events||[]).length,ok:!(tx.effects&&tx.effects.status&&tx.effects.status.success===false),commitment:null,nullifier:null};}
+
+/* roaring bitmap (signer set of a block certificate): array and run containers */
+function lvRoaring(b){try{if(!b||b.length<8)return [];const dv=new DataView(b.buffer,b.byteOffset,b.byteLength);let o=0;const cookie=dv.getUint32(0,true);let n,run=null;
+  if((cookie&0xffff)===12347){n=(cookie>>>16)+1;o=4;const rb=Math.ceil(n/8);run=b.slice(o,o+rb);o+=rb;}else if(cookie===12346){n=dv.getUint32(4,true);o=8;}else return [];
+  const keys=[],cards=[];for(let i=0;i<n;i++){keys.push(dv.getUint16(o,true));cards.push(dv.getUint16(o+2,true)+1);o+=4;}
+  if(run==null||n>=4)o+=4*n;const out=[];
+  for(let i=0;i<n;i++){const hi=keys[i]<<16;const isRun=run&&(run[i>>3]>>(i&7))&1;
+    if(isRun){const nr=dv.getUint16(o,true);o+=2;for(let r=0;r<nr;r++){const st=dv.getUint16(o,true),ln=dv.getUint16(o+2,true);o+=4;for(let v=st;v<=st+ln;v++)out.push(hi|v);}}
+    else if(cards[i]<=4096){for(let j=0;j<cards[i];j++){out.push(hi|dv.getUint16(o,true));o+=2;}}
+    else{for(let w=0;w<1024;w++){const lo=dv.getUint32(o,true),hiw=dv.getUint32(o+4,true);o+=8;for(let bit=0;bit<32;bit++){if(lo&(1<<bit))out.push(hi|(w*64+bit));if(hiw&(1<<bit))out.push(hi|(w*64+32+bit));}}}}
+  return out;}catch(e){return [];}}
+
+/* ---------- reading the chain ---------- */
+const CP_MASK={paths:['sequence_number','digest','summary.timestamp','summary.total_network_transactions','summary.epoch','summary.previous_digest','signature.bitmap','contents.bcs',
+ 'transactions.digest','transactions.transaction.sender','transactions.transaction.kind','transactions.effects.status','transactions.effects.gas_used','transactions.effects.changed_objects.object_id','transactions.events.events.event_type','transactions.balance_changes']};
+async function lvFetchCp(seq){const have=S.cps.find(c=>c.n===seq);if(have)return have;if(LV.cpPending[seq])return LV.cpPending[seq];
+  const p=(async()=>{const r=(await LSv.getCheckpoint({checkpointId:{oneofKind:'sequenceNumber',sequenceNumber:BigInt(seq)},readMask:CP_MASK})).response.checkpoint;
+    const ts=lvTs(r.summary.timestamp);const prev=S.cps.find(c=>c.n===seq-1);const ms=prev?Math.max(1,ts-prev.t):Math.round(S.fin||250);
+    const signers=lvRoaring(r.signature&&r.signature.bitmap);const txs=(r.transactions||[]).map(t=>lvMapTx(t,seq,ts,ms));
+    const cp={n:seq,txc:txs.length,user:txs.filter(t=>!t.sys).length,ms,leader:'—',t:ts,reward:blockReward(),txs:0,digest:r.digest,prev:r.summary.previousDigest,epoch:Number(r.summary.epoch),total:Number(r.summary.totalNetworkTransactions),
+      sigs:signers.length||Math.ceil(V.length*2/3),signers,size:Math.max(.01,((r.contents&&r.contents.bcs&&r.contents.bcs.value||[]).length)/1024),ids:txs.map(t=>t.id)};
+    const nx=S.cps.find(c=>c.n===seq+1);if(nx&&nx._msGuess){nx.ms=Math.max(1,nx.t-ts);nx._msGuess=false;}if(!prev)cp._msGuess=true;
+    S.cps.push(cp);S.cps.sort((a,b)=>b.n-a.n);if(S.cps.length>700)S.cps.length=700;
+    for(const t of txs)if(!LV.seen.has(t.id)){LV.seen.add(t.id);S.txs.push(t);}
+    S.txs.sort((a,b)=>b.cp-a.cp);if(S.txs.length>4000){for(const t of S.txs.splice(4000))LV.seen.delete(t.id);}
+    if(LV.oldest==null||seq<LV.oldest)LV.oldest=seq;return cp;})();
+  LV.cpPending[seq]=p;try{return await p;}finally{delete LV.cpPending[seq];}}
+async function lvBatch(list,n,fn){for(let i=0;i<list.length;i+=n)await Promise.all(list.slice(i,i+n).map(x=>fn(x).catch(e=>null)));}
+
+async function lvPoll(){const t0=performance.now();
+  try{const si=(await LSv.getServiceInfo({})).response;LV.latency=performance.now()-t0;LV.online=true;LV.chainId=si.chainId;LV.server=si.server;LV.lowest=Number(si.lowestAvailableCheckpoint||0);
+    const h=Number(si.checkpointHeight);const from=LV.head==null?Math.max(LV.lowest,h-60):Math.max(LV.head+1,h-14);const need=[];for(let s=from;s<=h;s++)need.push(s);
+    if(need.length){await lvBatch(need,8,lvFetchCp);const fresh=need.map(s=>S.cps.find(c=>c.n===s)).filter(Boolean);LV.head=h;lvAfterBlocks(fresh);}
+  }catch(e){LV.online=false;console.warn(e);}
+  if(LV.ready){renderChrome();updateView();}}
+function lvAfterBlocks(fresh){if(!fresh.length)return;fresh.sort((a,b)=>a.n-b.n);
+  const win=S.cps.slice(0,40);const ints=win.map(c=>c.ms).filter(x=>x>0).sort((a,b)=>a-b);
+  const a=S.cps[Math.min(S.cps.length-1,20)],b=S.cps[0];const tps=a&&b&&b.t>a.t?(b.total-a.total)/((b.t-a.t)/1000):0;
+  S.tps=tps;S.fin=ints.length?ints.reduce((x,y)=>x+y,0)/ints.length:S.fin;S.p95=ints.length?ints[Math.floor(ints.length*.95)]:S.fin;S.base=S.fin;S.peak=Math.max(S.peak||0,tps);
+  S.cp=b.n;S.totalTx=b.total;if(LV.total0==null)LV.total0=b.total;S.txToday=b.total;S.epoch=b.epoch;P.cpMs=Math.max(1,Math.round(S.fin));
+  const m={transfer:0,defi:0,bank:0,private:0,system:0};
+  for(const c of fresh){S.finHist[Math.min(11,Math.floor(c.ms/100))]+=1;for(const id of c.ids){const t=S.txs.find(x=>x.id===id);if(t){m[t.c]++;S.mix[t.c]=(S.mix[t.c]||0)+1;}}
+    c.signers.forEach(i=>{LV.sign[i]=(LV.sign[i]||0)+1;});V.forEach((v,i)=>{if(c.signers.length){if(c.signers.includes(i))v.signed++;else v.missed++;}v.bits=(v.bits||[]);v.bits.push(c.signers.length?c.signers.includes(i)?1:0:1);if(v.bits.length>60)v.bits.shift();v.up=v.bits.some(x=>x)?100:0;v.on=v.up>0;});}
+  S.mixHist.push(m);if(S.mixHist.length>120)S.mixHist.shift();
+  S.hist.tps.push(tps);S.hist.fin.push(S.fin);S.hist.t.push(Date.now());for(const k of ['tps','fin','t'])if(S.hist[k].length>240)S.hist[k].shift();
+  S.feesToday=S.txs.reduce((x,t)=>x+(t.sys?0:t.feeNet),0);}
+
+async function lvPollSystem(){try{const ep=(await LSv.getEpoch({readMask:{paths:['system_state','start','reference_gas_price']}})).response.epoch;const sys=ep.systemState;LV.sys=sys;
+  LV.rgp=Number(ep.referenceGasPrice||sys.referenceGasPrice||1000);P.gasPrice=LV.rgp;S.epoch=Number(sys.epoch);S.epochStart=Number(sys.epochStartTimestampMs)||lvTs(ep.start);
+  P.epochHours=Number(sys.parameters.epochDurationMs)/3.6e6;P.maxValidators=Number(sys.parameters.maxValidatorCount);P.minStake=lvRv(sys.parameters.minValidatorJoiningStake);
+  const ss=sys.stakeSubsidy;S.reserve=lvRv(ss.balance);S.emitted=MINED-S.reserve;
+  const act=sys.validators.activeValidators;const old=V.slice();V.length=0;
+  act.forEach((x,i)=>{const o=old.find(v=>v.addr===x.address)||{};const st=lvRv(x.stakingPool.suiBalance);
+    V.push({id:i,name:x.name,city:{n:'Rivers testnet',c:'Testnet',cc:'',lon:NaN,lat:NaN},stake:st,self:st,comm:Number(x.commissionRate)/100,up:o.up!=null?o.up:100,on:true,jailed:false,power:Number(x.votingPower)/10000,
+      joined:Number(x.stakingPool.activationEpoch||0),signed:o.signed||0,missed:o.missed||0,bits:o.bits||[],addr:x.address,gas:Number(x.gasPrice),next:lvRv(x.nextEpochStake),pool:x.stakingPool.id,desc:x.description,url:x.projectUrl});});
+  S.leader=0;}catch(e){console.warn(e);}}
+async function lvPollWallets(){await lvBatch(GW.concat([['faucet',LV_FAUCET_ADDR]]),6,async g=>{const b=(await SSv.getBalance({owner:g[1],coinType:RVRB_T})).response.balance;const v=lvRv(b&&b.balance||0);if(g[0]==='faucet')LV.faucetBal=v;else LV.gw[g[1]]=v;});}
+
+/* ---------- supply, from real balances ---------- */
+function lvGroup(g){return GW.filter(x=>x[0].replace(/-\d+$/,'')===g).reduce((a,x)=>a+(LV.gw[x[1]]||0),0);}
+function supplyBuckets(){const st=stakedTotal(),fau=LV.faucetBal||0;const parts=[['Staked with validators',st,'var(--river)'],['Not yet mined',S.reserve,'var(--dim)'],['Foundation and developers',lvGroup('foundation'),'#FFFFFF'],['Ecosystem and grants',lvGroup('ecosystem'),'var(--violet)'],
+  ['Community',lvGroup('community'),'var(--mint)'],['Early backers',lvGroup('early-backers'),'#00A862'],['DEX liquidity',lvGroup('dex-liquidity'),'var(--gold)'],['Testnet faucet',fau,'#9FE8C8']];
+  const known=parts.reduce((a,p)=>a+p[1],0);parts.push(['Other holders',Math.max(0,SUPPLY-known),'var(--deep)']);if(C.light)parts[2][2]='#03241A';return parts;}
+function circulating(){return SUPPLY-S.reserve;}
+function computePower(){}
+function pickTT(){const r=S.txs.slice(0,200);if(!r.length)return TT[TT.length-1];const t=r[Math.floor(Math.random()*r.length)];return {k:t.type,c:t.c,w:0,gas:t.gas};}
+function topTokens(){return [];}
+
+/* ---------- rows and pages with real fields ---------- */
+function txRow(t){const amt=t.sys?'<span class="dim">System</span>':t.amt?fmt(t.amt,4)+' RVRB':'—';
+  return '<div class="li click" data-act="tx" data-id="'+t.id+'"><span class="ty '+t.c+'">'+esc(t.type)+'</span><span class="mono trunc">'+short(t.id,8)+'</span><span class="r">'+amt+'</span>'+
+    '<span class="s">'+(t.ok?'Sealed in block':'Failed in block')+' #'+fmt(t.cp)+' · '+ago(t.t)+(t.sys?'':' · '+fmtA(t.feeNet)+' RVRB')+(t.label?' · '+esc(t.label):'')+'</span></div>';}
+function cpRow(c){return '<div class="li click" data-act="cp" data-n="'+c.n+'"><span class="tag">BLK</span><span class="mono">#'+fmt(c.n)+'</span><span class="r">'+fmt(c.txc)+' tx</span><span class="s">'+fmt(c.ms)+' ms after the last · '+c.sigs+' of '+V.length+' signatures · '+ago(c.t)+'</span></div>';}
+function streamRow(t){return '<div class="li click" data-act="tx" data-id="'+t.id+'" style="animation:rise .45s both"><span class="ty '+t.c+'">'+esc(t.type)+'</span><span class="trunc"><span class="mono">'+short(t.id,7)+'</span> <span class="muted" style="font-size:.74rem">'+(t.sys?esc(t.label||'Rivers system'):esc(lvName(t.from)||short(t.from,5))+' → '+(t.to?esc(lvName(t.to)||short(t.to,5)):esc(t.label||'contract')))+'</span></span><span class="r">'+(t.sys?'<span class="dim">System</span>':t.amt?fmt(t.amt,3)+' RVRB':'—')+'</span></div>';}
+function marquee(){const u=S.txs.filter(t=>!t.sys);const l=(u.length>=6?u:u.concat(S.txs.filter(t=>t.sys))).slice(0,22);const chip=t=>'<a data-act="tx" data-id="'+t.id+'"><i style="background:'+C.types[t.c]+'"></i>'+esc(t.type)+' · '+short(t.id,5)+' · '+(t.sys?esc(t.label||'network'):t.amt?fmt(t.amt,2)+' RVRB':esc(t.label||'contract'))+'</a>';const h=l.map(chip).join('');return '<div class="trk">'+h+h+'</div>';}
+function partyCell(t,side){const a=t[side];if(side==='from'&&t.sys)return '<span class="dim">Rivers system</span>';if(!a)return '<span class="dim">—</span>';return lvAddr(a,6);}
+function lvSame(n){return S.txs.filter(x=>x.cp===n);}
+
+const TX_MASK={paths:['digest','transaction.sender','transaction.kind','transaction.gas_payment','effects.status','effects.gas_used','effects.changed_objects','checkpoint','timestamp','balance_changes','events.events.event_type']};
+async function lvLoadTx(id){if(LV.txd[id])return LV.txd[id];const tx=(await LSv.getTransaction({digest:id,readMask:TX_MASK})).response.transaction;const seq=Number(tx.checkpoint||0);const ts=lvTs(tx.timestamp);
+  const cp=S.cps.find(c=>c.n===seq);const t=lvMapTx(tx,seq,ts,cp?cp.ms:Math.round(S.fin||0));t.raw=tx;LV.txd[id]=t;if(!LV.seen.has(id)){LV.seen.add(id);S.txs.push(t);S.txs.sort((a,b)=>b.cp-a.cp);}return t;}
+function txPage(t){const d=LV.txd[t.id];if(!d){lvLoadTx(t.id).then(()=>{if(CUR.sub==='tx'&&CUR.param===t.id)route();}).catch(()=>{});}
+  if(t.cp&&!S.cps.find(c=>c.n===t.cp)&&!LV.cpPending[t.cp])lvFetchCp(t.cp).then(()=>{if(CUR.sub==='tx'&&CUR.param===t.id)route();}).catch(()=>{});
+  const x=d||t;const raw=d&&d.raw;const flow=x.sys?flowSvg('Rivers system','Rivers','Block #'+fmt(x.cp),esc(x.label||x.type),false):flowSvg(esc(lvName(x.from)||short(x.from||'',6)),'Rivers',x.to?esc(lvName(x.to)||short(x.to,6)):'Block #'+fmt(x.cp),x.amt?fmt(x.amt,4)+' RVRB':esc(x.label||x.type),false);
+  const bc=raw?(raw.balanceChanges||[]):[];const ev=raw?(raw.events&&raw.events.events||[]):[];const objs=raw?(raw.effects&&raw.effects.changedObjects||[]):[];const cpi=S.cps.find(c=>c.n===x.cp);
+  const conf=Math.max(0,S.cp-x.cp);const tot=x.comp+x.stor||1;
+  return `<section class="card hud"><div class="ch"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><a class="icobtn" href="#explorer-transactions" aria-label="Back">←</a><span class="ty ${x.c}" style="font-size:.8rem;padding:5px 10px">${esc(x.type)}</span><span id="txStat">${x.ok?'<span class="b ok dot" style="font-size:.8rem;padding:5px 12px">Final</span>':'<span class="b bad dot" style="font-size:.8rem;padding:5px 12px">Failed</span>'}</span></div><a class="btn sm" href="#explorer-block-${x.cp}">Block #${fmt(x.cp)}</a></div>
+  <div style="display:grid;gap:6px"><span class="cap">Transaction digest</span><div class="mono" style="font-size:clamp(.78rem,1.6vw,1rem);word-break:break-all">${x.id}</div><div class="btns"><button class="btn xs" data-act="copy" data-v="${x.id}">Copy</button><span class="muted" style="font-size:.78rem">${x.t?new Date(x.t).toUTCString():''} · ${fmt(conf)} blocks since</span></div></div>
+  ${flow}</section>
+ <div class="g c6 rise">${stat('Amount',x.sys?'—':x.amt?fmt(x.amt,4):'—',x.sys?'run by the network':'RVRB')}${stat('Block time',cpi?fmt(cpi.ms)+' ms':'—','after the previous block')}${stat('Fee',x.sys?'None':fmtA(x.feeNet),x.sys?'system transaction':'RVRB after storage refund')}${stat('Gas used',fmt(x.gas),fmt(LV.rgp)+' drops each')}${stat('Objects changed',raw?fmt(objs.length):fmt(x.objs),'coins and accounts')}${stat('Events',raw?fmt(ev.length):fmt(x.events),'emitted')}</div>
+ <div class="g c21 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.clock}</span>Where it landed</h2></div><div class="timeline">${[['Sent by',x.sys?'Rivers system':lvAddr(x.from,8)],['Sealed in block','<a class="alink mono" href="#explorer-block-'+x.cp+'">#'+fmt(x.cp)+'</a>'],['Signed by',cpi?cpi.sigs+' of '+V.length+' validators':'two thirds of the validators'],['Epoch',S.epoch],['Status',x.ok?'Final, cannot be reversed':'Failed, no balances moved except the fee']].map(r=>'<div class="tl"><span class="dot"></span><span><b>'+r[0]+'</b><br><span class="muted">'+r[1]+'</span></span></div>').join('')}</div></section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.flame}</span>Gas breakdown</h2></div>${x.sys?'<div class="empty">System transactions pay no fee.</div>':'<div class="kv"><div><span>Computation</span><span>'+fmtA(x.comp)+' RVRB</span></div><div class="bar"><i style="width:'+x.comp/tot*100+'%"></i></div><div><span>Storage</span><span>'+fmtA(x.stor)+' RVRB</span></div><div class="bar g"><i style="width:'+x.stor/tot*100+'%"></i></div><div><span>Storage refund</span><span class="up">−'+fmtA(x.rebate)+' RVRB</span></div><div><span>Total fee</span><span>'+fmtA(x.feeNet)+' RVRB</span></div></div>'}</section></div>
+ <div class="g c2 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.coins}</span>Balance changes</h2></div>${raw?(bc.length?'<div class="list">'+bc.map(b=>{const v=lvRv(b.amount);return '<div class="li">'+identicon(b.address,26)+'<span>'+lvAddr(b.address,8)+'</span><span class="r" style="color:'+(v<0?'var(--bad)':'var(--ok)')+'">'+(v>0?'+':'')+fmt(v,6)+' '+(b.coinType===RVRB_T?'RVRB':esc(b.coinType.split('::').pop()))+'</span></div>';}).join('')+'</div>':'<div class="empty">No balances changed.</div>'):'<div class="empty">Loading…</div>'}</section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.activity}</span>Events</h2></div><div class="list">${raw?(ev.map((e,i)=>'<div class="li"><span class="tag">'+(i+1)+'</span><span class="mono" style="font-size:.78rem">'+esc((e.eventType||'').split('::').slice(-1)[0]||'Event')+'</span><span class="r muted">'+esc((e.eventType||'').split('::').slice(1,2).join(''))+'</span></div>').join('')||'<div class="empty">No events.</div>'):'<div class="empty">Loading…</div>'}</div></section></div>
+ <div class="g c2 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.cube}</span>Also in block #${fmt(x.cp)}</h2></div><div class="list">${lvSame(x.cp).filter(y=>y.id!==x.id).slice(0,6).map(txRow).join('')||'<div class="empty">No other transactions in this block.</div>'}</div></section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.code}</span>Raw</h2></div><pre>${esc(JSON.stringify({digest:x.id,kind:x.type,call:x.label||undefined,status:x.ok?'success':'failure',block:x.cp,sender:x.from||'system',recipient:x.to||undefined,amount_rvrb:x.amt||undefined,gas_used:x.gas,gas_price_drops:LV.rgp,computation_rvrb:x.comp,storage_rvrb:x.stor,storage_refund_rvrb:x.rebate,objects_changed:raw?objs.length:x.objs},null,2))}</pre></section></div>`;}
+function blockPage(n){const c=S.cps.find(x=>x.n===n);if(!c){if(LV.head!=null&&n>LV.head)return '<section class="card"><div class="empty">Block #'+fmt(n)+' has not been produced yet. The latest block is #'+fmt(LV.head)+'.</div><a class="btn" href="#explorer-blocks">All blocks</a></section>';
+    lvFetchCp(n).then(()=>{if(CUR.sub==='block'&&+CUR.param===n)route();}).catch(()=>{const p=$('page');if(p&&CUR.sub==='block'&&+CUR.param===n)p.innerHTML='<section class="card"><div class="empty">Block #'+fmt(n)+' is not kept by this node.</div></section>';});
+    return '<section class="card"><div class="empty">Loading block #'+fmt(n)+'…</div></section>';}
+  const act=V.length;const list=lvSame(n);const mix=Object.keys(TNAME).map(k=>[TNAME[k],list.filter(t=>t.c===k).length,C.types[k]]);
+  return `<section class="card hud"><div class="ch"><div style="display:flex;gap:12px;align-items:center"><a class="icobtn" href="#explorer-blocks" aria-label="Back">←</a><div><span class="cap">Block</span><div class="big glowtx">#${fmt(n)}</div></div></div><div class="btns"><a class="btn sm" href="#explorer-block-${n-1}">← Previous</a>${n<S.cp?'<a class="btn sm" href="#explorer-block-'+(n+1)+'">Next →</a>':''}</div></div>
+  <div class="kv"><div><span>Digest</span><span>${short(c.digest,14)} <button class="btn xs" data-act="copy" data-v="${c.digest}">Copy</button></span></div><div><span>Produced</span><span>${new Date(c.t).toUTCString().slice(5,25)} UTC · epoch ${c.epoch}</span></div><div><span>Previous block</span><span>${c.prev?short(c.prev,14):'—'}</span></div></div></section>
+ <div class="g c6 rise">${stat('Transactions',fmt(c.txc),c.user+' from users')}${stat('Block time',fmt(c.ms)+' ms','after the previous block')}${stat('Block reward',fmtA(c.reward||blockReward()).slice(0,10),'RVRB, paid at epoch end')}${stat('Signatures',c.sigs+'/'+act,pct(c.sigs/Math.max(1,act),1))}${stat('Size',fmt(c.size,2)+' KB','contents')}${stat('Era',(currentEra()+1)+' of 10','reward halves every 5 years')}</div>
+ <div class="g c3 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.server}</span>Certified by</h2><span class="sub">validators that signed</span></div><div class="list">${V.map((v,i)=>'<a class="li click" href="#explorer-validator-'+v.id+'" style="text-decoration:none">'+identicon(v.addr,30)+'<span><b class="mono">'+esc(v.name)+'</b><br><span class="muted" style="font-size:.72rem">'+(v.power*100).toFixed(2)+'% power</span></span><span class="r">'+(c.signers.length?(c.signers.includes(i)?'<span class="b ok dot">Signed</span>':'<span class="b">Not needed for quorum</span>'):'<span class="b ok dot">Quorum</span>')+'</span></a>').join('')}</div></section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.grid}</span>Mix</h2></div><div class="donut">${donut(mix,fmt(c.txc),'TX')+legend(mix.filter(m=>m[1]),fmt)}</div></section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.shield}</span>Votes</h2><span class="sub">${c.sigs} of ${act} signed</span></div>${heat(V.map((v,i)=>c.signers.length?(c.signers.includes(i)?1:-1):1),Math.max(4,act),x=>x<0?'var(--hair3)':greenRamp(.9))}</section></div>
+ <section class="card"><div class="ch"><h2><span class="ico">${IC.list}</span>Transactions in this block</h2></div><div class="list">${list.map(txRow).join('')||'<div class="empty">Empty block.</div>'}</div></section>`;}
+function valPage(v){const up=v.signed+v.missed?v.signed/(v.signed+v.missed)*100:100;
+  return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center"><a class="icobtn" href="#explorer-validators" aria-label="Back">←</a>${identicon(v.addr,58)}<div><div class="mono" style="font-size:1.1rem">${esc(v.name)}</div><div class="muted" style="font-size:.82rem">${lvAddr(v.addr,8)} · active since epoch ${v.joined}</div></div></div>
+  <div class="btns"><span class="b ok dot">Active</span><button class="btn pri sm" data-act="lvsoon" data-v="Staking from Rivers Wallet">Stake with this validator</button></div></div></section>
+ <div class="g c6 rise">${stat('Voting power',(v.power*100).toFixed(2)+'%','of the committee')}<div class="kpi"><span class="cap">Total stake</span><span class="v" id="vpS">${fmt(v.stake,2)} RVRB</span><span class="s">next epoch ${compact(v.next)}</span></div>${stat('Signed share',up.toFixed(1)+'%','of blocks seen; two thirds is enough')}${stat('Fee',fmt(v.comm,2)+'%','of rewards')}${stat('Signed',fmt(v.signed),'blocks seen')}${stat('Gas price',fmt(v.gas),'drops it votes for')}</div>
+ <div class="g c3 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.coins}</span>Stake</h2></div><div class="donut">${donut([['This validator',v.stake,'var(--river)'],['Other validators',Math.max(0,stakedTotal()-v.stake),'var(--hair3)']],compact(v.stake),'RVRB')}</div></section>
+  <section class="card soon" data-soon="Reward history needs the Rivers indexer"><div class="ch"><h2><span class="ico">${IC.flame}</span>Rewards per day</h2><span class="sub">last 14 days, RVRB</span></div>${bars(Array.from({length:14},(_,i)=>1+(i%3)),Array.from({length:14},(_,i)=>i%3===0?'D'+(i+1):''),C.acc,120)}</section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.activity}</span>Signatures</h2><span class="sub">last ${v.bits.length} blocks</span></div>${heat((v.bits.length?v.bits:[1]).slice(-60),15,x=>x<1?'var(--bad)':greenRamp(1))}</section></div>`;}
+function assetPage(t){if(t!=='RVRB')return lvSoonPage('Token pages for '+esc(t),'Stablecoins, cross-chain assets and Token Studio tokens get their pages when their contracts launch.');location.hash='explorer-token';return '';}
+
+
+/* transaction page: Visual and Classic views of the agreed design, real fields */
+EXX.tx.build=function(){const id=CUR.param;const t=LV.txd[id]||S.txs.find(x=>x.id===id);
+  if(!t){lvLoadTx(id).then(()=>{if(CUR.sub==='tx'&&CUR.param===id)route();}).catch(()=>{const p=$('page');if(p&&CUR.sub==='tx'&&CUR.param===id)p.innerHTML='<section class="card"><div class="empty">This transaction is not on the Rivers testnet. Check the digest and try again.</div><a class="btn" href="#explorer-transactions">All transactions</a></section>';});
+    return '<section class="card"><div class="empty">Loading transaction…</div></section>';}
+  EXX._t=t;const sw='<div class="ch"><div class="seg" role="tablist" aria-label="Transaction layout"><button data-act="txm" data-v="visual" class="'+(EX.txMode!=='classic'?'on':'')+'">Visual</button><button data-act="txm" data-v="classic" class="'+(EX.txMode==='classic'?'on':'')+'">Classic</button></div></div>';
+  return sw+(EX.txMode==='classic'?classicTx(t):txPage(t));};
+EXX.tx.update=function(){};
+function classicTx(t){const d=LV.txd[t.id];if(!d)lvLoadTx(t.id).then(()=>{if(CUR.sub==='tx'&&CUR.param===t.id)route();}).catch(()=>{});const x=d||t;const raw=d&&d.raw;const conf=Math.max(0,S.cp-x.cp);
+ const cp=v=>' <button class="icobtn" style="width:26px;height:26px;display:inline-grid;vertical-align:middle" data-act="copy" data-v="'+v+'" aria-label="Copy">'+IC.copy.replace('<svg','<svg style="width:12px;height:12px"')+'</button>';const cpi=S.cps.find(c=>c.n===x.cp);
+ const rows=[['Transaction digest','<span class="mono" style="word-break:break-all">'+x.id+'</span>'+cp(x.id)],['Status',x.ok?'<span class="b ok dot">Final</span>':'<span class="b bad dot">Failed</span>'],
+  ['Block','<a href="#explorer-block-'+x.cp+'" class="mono" style="color:var(--river)">#'+fmt(x.cp)+'</a> <span class="b mute">'+fmt(conf)+' blocks since</span>'],['Timestamp',x.t?ago(x.t)+' <span class="muted">('+new Date(x.t).toUTCString()+')</span>':'—'],['Type','<span class="ty '+x.c+'">'+esc(x.type)+'</span>'+(x.label?' <span class="mono muted">'+esc(x.label)+'</span>':'')],null,
+  ['From',x.sys?'Rivers system':'<span class="mono">'+x.from+'</span>'+cp(x.from)+(lvName(x.from)?' <span class="b mute">'+esc(lvName(x.from))+'</span>':'')],['To',x.to?'<span class="mono">'+x.to+'</span>'+cp(x.to)+(lvName(x.to)?' <span class="b mute">'+esc(lvName(x.to))+'</span>':''):'<span class="dim">—</span>'],null,
+  ['Value',x.sys?'<span class="dim">None</span>':'<b class="mono">'+fmt(x.amt,4)+' RVRB</b>'],['Transaction fee',x.sys?'None':'<span class="mono">'+fmtA(x.feeNet)+' RVRB</span> <span class="muted">(computation '+fmtA(x.comp)+' + storage '+fmtA(x.stor)+' − refund '+fmtA(x.rebate)+')</span>'],
+  ['Gas price','<span class="mono">'+fmt(LV.rgp)+' drops</span> <span class="muted">('+fmtA(LV.rgp/DROPS)+' RVRB)</span>'],['Gas used','<span class="mono">'+fmt(x.gas)+'</span>'],['Block time','<span class="mono">'+(cpi?fmt(cpi.ms)+' ms':'—')+'</span>'],['Objects changed','<span class="mono">'+(raw?(raw.effects&&raw.effects.changedObjects||[]).length:x.objs)+'</span>'],['Events','<span class="mono">'+(raw?(raw.events&&raw.events.events||[]).length:x.events)+'</span>']];
+ return '<section class="card"><div class="ch"><h2>Transaction details</h2><a class="btn sm" href="#explorer-transactions">All transactions</a></div><div class="ctable">'+rows.map(r=>r?'<div class="cr"><span class="cl">'+r[0]+'</span><span class="cv">'+r[1]+'</span></div>':'<div class="sep"></div>').join('')+'</div></section>'+
+  '<section class="card"><div class="ch"><h2>Raw</h2></div><pre>'+esc(JSON.stringify({digest:x.id,kind:x.type,call:x.label||undefined,status:x.ok?'success':'failure',block:x.cp,sender:x.from,recipient:x.to||undefined,amount_rvrb:x.amt,gas_used:x.gas,gas_price_drops:LV.rgp,fee_rvrb:x.feeNet},null,2))+'</pre></section>';}
+
+/* ---------- address and faucet pages (new in the live Scan) ---------- */
+function lvAddrPage(a){const n=lvName(a);return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center;min-width:0">${identicon(a,58)}<div style="min-width:0"><span class="eyebrow">${n&&LV_NAMES.has(a)?'Genesis wallet · '+esc(GW_GROUP[n.replace(/-\d+$/,'')]||''):'Address'}</span><div style="font-size:1.25rem;font-weight:800">${esc(n||'Wallet')}</div><div class="mono muted" style="font-size:.76rem;word-break:break-all">${a}</div></div></div><div class="btns"><button class="btn xs" data-act="copy" data-v="${a}">Copy</button><a class="btn pri sm" href="#explorer-faucet" data-act="lvfa" data-a="${a}">Get test RVRB</a></div></div></section>
+ <div class="g c3 rise">${kpi('aB','RVRB balance',IC.coins)}${kpi('aO','Coins and objects',IC.cube)}${kpi('aT','Recent transactions',IC.activity)}</div>
+ <div class="g c2 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.coins}</span>Balances</h2></div><div id="aBal"><div class="empty">Loading…</div></div></section><section class="card"><div class="ch"><div class="ttl"><h2><span class="ico">${IC.activity}</span>Recent activity</h2><span class="sub">transactions that last touched this wallet</span></div></div><div class="list" id="aTx"><div class="empty">Loading…</div></div></section></div>`;}
+async function lvAddrLoad(a){try{const [bals,objs]=await Promise.all([SSv.listBalances({owner:a}),SSv.listOwnedObjects({owner:a,pageSize:100,readMask:{paths:['object_id','object_type','previous_transaction']}})]);if(CUR.param!==a)return;
+  const bl=bals.response.balances||[];const r=bl.find(b=>b.coinType===RVRB_T);$('aB').textContent=r?fmt(lvRv(r.balance),4):'0';$('aBs').textContent=r?pct(lvRv(r.balance)/SUPPLY,4)+' of maximum supply':'RVRB';
+  const ob=objs.response.objects||[];$('aO').textContent=fmt(ob.length)+(objs.response.nextPageToken?'+':'');$('aOs').textContent='owned right now';
+  $('aBal').innerHTML=bl.length?'<div class="list">'+bl.map(b=>'<div class="li">'+(b.coinType===RVRB_T?tokIcon('RVRB',30):'<span class="tk">•</span>')+'<span><b>'+(b.coinType===RVRB_T?'RVRB':esc(b.coinType.split('::').pop()))+'</b><br><span class="muted" style="font-size:.72rem">'+(b.coinType===RVRB_T?'Native token':esc(short(b.coinType,8)))+'</span></span><span class="r">'+fmt(lvRv(b.balance),4)+'</span></div>').join('')+'</div>':'<div class="empty">This address holds nothing yet.</div>';
+  const digs=[...new Set(ob.map(o=>o.previousTransaction).filter(Boolean))].slice(0,25);S.txs.filter(t=>t.from===a||t.to===a).forEach(t=>{if(!digs.includes(t.id))digs.push(t.id);});
+  if(!digs.length){$('aT').textContent='0';$('aTx').innerHTML='<div class="empty">No activity yet.</div>';return;}
+  const got=(await LSv.batchGetTransactions({digests:digs.slice(0,40),readMask:TX_MASK})).response.transactions||[];if(CUR.param!==a)return;
+  const rows=got.map(g=>g.result&&g.result.oneofKind==='transaction'?g.result.transaction:null).filter(Boolean).map(tx=>{const t=lvMapTx(tx,Number(tx.checkpoint||0),lvTs(tx.timestamp),0);t.mine=(tx.balanceChanges||[]).filter(b=>b.address===a&&b.coinType===RVRB_T).reduce((x,b)=>x+lvRv(b.amount),0);return t;}).sort((x,y)=>y.cp-x.cp);
+  $('aT').textContent=fmt(rows.length);$('aTs').textContent='found on chain';
+  $('aTx').innerHTML=rows.map(t=>'<div class="li click" data-act="tx" data-id="'+t.id+'"><span class="ty '+t.c+'">'+(t.sys?esc(t.type):t.from===a?'Sent':'Received')+'</span><span class="mono trunc">'+short(t.id,8)+'</span><span class="r" style="color:'+(t.mine<0?'var(--bad)':t.mine>0?'var(--ok)':'var(--muted)')+'">'+(t.mine>0?'+':'')+(t.mine?fmt(t.mine,4)+' RVRB':'—')+'</span><span class="s">Block #'+fmt(t.cp)+' · '+(t.t?ago(t.t):'')+(t.label?' · '+esc(t.label):'')+'</span></div>').join('')||'<div class="empty">No activity yet.</div>';
+ }catch(e){console.warn(e);const b=$('aBal');if(b)b.innerHTML='<div class="empty">Could not read this address.</div>';}}
+function lvFaucetPage(){return `<div class="g c21 ais"><section class="card hud"><div class="ch"><div class="ttl"><h2><span class="ico">${IC.droplet}</span>Testnet faucet</h2><span class="sub">50 test RVRB per request, sent as 5 coins of 10 RVRB</span></div><span class="b ok dot" id="fauB">Online</span></div>
+  <div class="fld"><label for="fA">Your Rivers wallet address</label><input class="in mono" id="fA" placeholder="0x…" autocomplete="off" spellcheck="false" value="${esc(lvQS.get('addr')||lvStore.get('rvScanLastAddr')||'')}"></div>
+  <button class="btn pri wide" data-act="lvfaucet" id="fGo">Send me 50 test RVRB</button><div id="fR"></div><div class="kv"><div><span>Faucet balance</span><span id="fBal">—</span></div></div></section>
+  <section class="card"><div class="ch"><h2><span class="ico">${IC.shield}</span>Good to know</h2></div><div class="list">${[['Test RVRB has no value','It exists only on the testnet, which will be reset before mainnet.'],['Use it to try everything','Send, stake, create tokens and test contracts without risk.'],['Fair use','Ask again when you run out. Please do not drain the faucet.']].map(x=>'<div class="li"><span class="chk ok">✓</span><span><b style="font-size:.84rem">'+x[0]+'</b><br><span class="muted" style="font-size:.76rem">'+x[1]+'</span></span><span></span></div>').join('')}</div></section></div>`;}
+function lvSoonPage(title,why){return '<section class="card hud soonhead"><div class="ch"><div class="ttl"><span class="eyebrow">'+SOON+'</span><h2 style="font-family:var(--f-display);font-weight:500;font-size:1.25rem;margin-top:6px">'+title+'</h2></div><span class="b gold">'+SOON+'</span></div><p class="fg2" style="max-width:76ch">'+why+' The page below is the agreed design; it shows live data once this part of Rivers is on the chain.</p></section>';}
+const LV_SOON_PAGES={privacy:['Shielded payments','Shielded payments need the Rivers privacy pool contract and proof verifier.'],tokens:['All tokens','Today the Rivers testnet has one token, RVRB. Stablecoins, cross-chain assets and Token Studio tokens arrive with their contracts.'],
+  crosschain:['Cross-chain gateway','The gateway needs vaults on other chains and the Rivers mint and burn contracts.'],create:['Token Studio','Creating tokens by clicks needs the Token Studio contract and Rivers Wallet.']};
+
+/* ---------- wire into the agreed views ---------- */
+TNAME.defi='Contract calls';TNAME.bank='Bank settlement';TNAME.private='Shielded';
+SCAN_NAV.forEach(g=>{if(g.t==='Tokens'&&g.items&&!g.items.find(i=>i[0]==='faucet'))g.items.push(['faucet','Testnet faucet','Free test RVRB for builders',IC.droplet]);});
+VIEWS.explorer.hidden.address='Address';
+(function(){const v=VIEWS.explorer;const b=v.build,a=v.after,u=v.update;
+ v.build=function(s){if(s==='address'){const a2=lvNorm(CUR.param||'');return a2?lvAddrPage(a2):'<div class="empty">Enter a full 0x address.</div>';}if(s==='faucet')return lvFaucetPage();
+  let h=b.call(this,s);if(LV_SOON_PAGES[s])h=lvSoonPage(LV_SOON_PAGES[s][0],LV_SOON_PAGES[s][1])+'<div class="soonwrap">'+h+'</div>';return h;};
+ v.after=function(s){if(s==='address'){const a2=lvNorm(CUR.param||'');if(a2){CUR.param=a2;lvAddrLoad(a2);}return;}if(s==='faucet'){lvFaucetBal();return;}try{a.call(this,s);}catch(e){console.warn(e);}lvMarks(s);};
+ v.update=function(s){if(s==='address'||s==='faucet')return;if(!LV.ready)return;try{u.call(this,s);}catch(e){console.warn(e);}lvFix(s);};})();
+if(!VIEWS.explorer.subs.find(x=>x[0]==='faucet'))VIEWS.explorer.subs.push(['faucet','Faucet',IC.droplet]);
+
+function lvSoon(el,note){if(!el||el.classList.contains('soon'))return;el.classList.add('soon');el.insertAdjacentHTML('beforeend','<div class="soonbadge"><span>'+SOON+'</span><b>'+esc(note||SOON)+'</b></div>');}
+function lvSoonAll(){document.querySelectorAll('.soon[data-soon]').forEach(el=>{if(!el.querySelector('.soonbadge'))el.insertAdjacentHTML('beforeend','<div class="soonbadge"><span>'+SOON+'</span><b>'+esc(el.dataset.soon)+'</b></div>');});}
+const lvCard=id=>{const e=$(id);return e?e.closest('.card'):null;};const lvKpi=id=>{const e=$(id);return e?e.closest('.kpi'):null;};
+function lvMarks(s){lvSoonAll();
+ if(s==='overview'){lvSoon(lvKpi('k2'),'Account count needs the Rivers indexer');lvSoon(lvKpi('k3'),'Light nodes arrive with the Rivers Wallet');lvSoon(lvCard('cal'),'Hourly history needs the Rivers indexer');lvSoon(lvCard('tmap'),'Liquidity arrives with the Rivers DEX');
+  lvSoon(lvCard('exTop'),'More tokens arrive with Token Studio and the DEX');lvSoon(lvCard('exXc'),'Cross-chain gateway');lvSoon(lvCard('exRadar'),'Continent caps apply once validators join from around the world');
+  const hp=document.querySelector('.hcopy p');if(hp)hp.textContent=V.length+' validators confirm every payment, trade and settlement on one open ledger. Search any transaction, block or wallet on the live Rivers testnet.';
+  const h=document.querySelector('.hero');if(h&&!h.querySelector('.mapnote'))h.insertAdjacentHTML('beforeend','<span class="mapnote">'+V.length+' validators on the testnet server · world map fills as validators join</span>');}
+ if(s==='transactions'){lvSoon(lvKpi('t4'),'Shielded payments');}
+ if(s==='validators'){lvSoon(lvCard('world'),'Validator locations appear as validators join from around the world');lvSoon($('vReg'),'Continent shares need validators on more than one continent');}
+ if(s==='token'){const p=$('tkPx');if(p)lvSoon(p.closest('.kv>div')||p.parentElement,'Price arrives with the Rivers DEX');}
+}
+function lvFix(s){
+ if(s==='overview'){const e1=$('hF');if(e1)e1.textContent=fmt(S.fin)+' ms';const e2=$('hF2');if(e2)e2.textContent='p95 '+fmt(S.p95)+' ms between blocks';const e3=$('hV2');if(e3)e3.textContent='equal voting power';
+  const k1s=$('k1s');if(k1s)k1s.textContent='since genesis, all types';const gk=$('gTk');if(gk)gk.innerHTML='<div><span>Sustained target</span><span>2,000 TPS</span></div><div><span>Right now</span><span>'+fmt(S.tps,1)+' TPS, mostly system transactions</span></div>';
+  const gs=$('gasK');if(gs)gs.innerHTML='<div><span>Reference gas price</span><span>'+fmt(LV.rgp)+' drops, set by the validators</span></div><div><span>Price in Naira or dollars</span><span>after the Rivers DEX launches</span></div>';
+  document.querySelectorAll('#gasT .t').forEach(t=>{const l=t.lastElementChild;if(l)l.textContent='no market yet';});
+  const xl=['−2m','−90s','−60s','−30s','now'];const cv=$('exChart');if(cv&&EX.chart==='tps')areaChart(cv,[{v:S.hist.tps,color:C.acc}],{n:240,min:1,xl});else if(cv&&EX.chart==='fin')areaChart(cv,[{v:S.hist.fin,color:C.tok,fill:C.light?'rgba(3,36,26,.12)':'rgba(255,255,255,.18)'}],{n:240,min:1,xl,fmt:v=>fmt(v)+'ms'});}
+ if(s==='transactions'){const t2=$('t2s');if(t2)t2.textContent='since genesis';const t3=$('t3');const u=S.txs.filter(t=>!t.sys);if(t3&&u.length){t3.textContent=fmtA(u.reduce((a,t)=>a+t.feeNet,0)/u.length)+' RVRB';const s3=$('t3s');if(s3)s3.textContent='average of '+u.length+' user transactions';}
+  const ti=$('txInfo');if(ti&&!S.txs.length)ti.textContent='Reading blocks…';}
+ if(s==='blocks'){const c1=$('c1s');if(c1)c1.textContent='about every '+fmt(S.fin)+' ms';const c2=$('c2s');if(c2)c2.textContent='p95 '+fmt(S.p95)+' ms';}
+ if(s==='validators'){const v4=$('v4s');if(v4)v4.textContent='signing in the last 60 blocks';}
+ if(s==='token'){const p=$('tkPx');if(p)p.textContent='No market yet';}
+}
+/* labels: the chain reports block times, not per-transaction finality */
+function lvRelabel(root){(root||document).querySelectorAll('h2,th,.cap,.sub,button,.legend span,span.s').forEach(el=>{if(el.children.length>2)return;el.childNodes.forEach(n=>{if(n.nodeType===3&&/inality/.test(n.textContent))n.textContent=n.textContent.replace('Finality p50','Block time').replace('Milliseconds to finality','Milliseconds between blocks').replace('finality of the last 40 blocks, ms','time between the last 40 blocks, ms').replace(/Finality/g,'Block time').replace(/finality/g,'block time');});});}
+
+/* ---------- shell: search, ticker, actions ---------- */
+function bindShell(){const gs=$('gs');if(!gs)return;gs.addEventListener('submit',e=>{e.preventDefault();const raw=$('gq').value.trim();const q=raw.replace(/[,#\s]/g,'');if(!q)return;
+  if(/^\d+$/.test(q)){location.hash='explorer-block-'+q;return;}const a=lvNorm(q);if(a){location.hash='explorer-address-'+a;return;}
+  const g=GW.find(x=>x[0]===q.toLowerCase());if(g){location.hash='explorer-address-'+g[1];return;}const v=V.find(x=>x.name.toLowerCase()===q.toLowerCase());if(v){location.hash='explorer-validator-'+v.id;return;}
+  if(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q)){location.hash='explorer-tx-'+q;return;}if(q.toUpperCase()==='RVRB'){location.hash='explorer-token';return;}
+  toast('No match for "'+raw+'". Try a transaction digest, a block number, a 0x address or a wallet name.',false);});}
+function lvFooter(){const p=document.querySelector('.xfoot p');if(p&&LV.chainId)p.textContent='The open explorer for the Rivers testnet. Chain ID '+short(LV.chainId,6)+'. Test RVRB has no value.';document.querySelectorAll('.xfoot a[href="#wallet"],.xfoot a[href="#institutions"]').forEach(a=>{a.setAttribute('href','#');a.dataset.act='lvsoon';a.dataset.v=a.textContent;});}
+function renderChrome(){lvFooter();const t=$('tick');if(t){const st=LV.online===false?'<span class="live bad">OFFLINE</span>':LV.online?'<span class="live">LIVE</span>':'<span class="muted">CONNECTING</span>';
+  t.innerHTML=st+'<span>TPS <b>'+fmt(S.tps,1)+'</b></span><span>BLOCK TIME <b>'+fmt(S.fin)+' ms</b></span><span>BLOCK <b>#'+fmt(S.cp)+'</b></span><span>EPOCH <b>'+S.epoch+'</b></span><span>VALIDATORS <b>'+V.length+'</b></span><span>STAKED <b>'+compact(stakedTotal())+' RVRB</b></span><span>MINED <b>'+fmt(S.emitted,2)+' / 11M</b></span><span>GAS <b>'+fmt(LV.rgp)+' drops</b></span>';}
+ let o=$('lvOff');if(!o){const pg=$('page');if(pg){pg.insertAdjacentHTML('beforebegin','<div id="lvOff"></div>');o=$('lvOff');}}
+ if(o)o.innerHTML=LV.online===false?'<div class="offbar"><b>The testnet is not answering.</b> It runs in a GitHub Codespace. Open the codespace on GitHub to bring it back.</div>':'';}
+async function lvFaucetBal(){const e=$('fBal');if(e)e.textContent=LV.faucetBal!=null?fmt(LV.faucetBal,2)+' RVRB':'—';}
+const LACT={
+ lvsoon(el){toast((el.dataset.v||'This feature')+' is '+SOON.toLowerCase()+'.');},
+ wconnect(){toast('Connecting a wallet to Scan comes with Rivers Wallet in Phase 2.');},
+ stakeon(){toast('Staking from Scan comes with Rivers Wallet in Phase 2.');},
+ lvfa(el){lvStore.set('rvScanLastAddr',el.dataset.a);},
+ tx(el){location.hash='explorer-tx-'+el.dataset.id;},cp(el){location.hash='explorer-block-'+el.dataset.n;},val(el){location.hash='explorer-validator-'+el.dataset.id;},
+ async lvfaucet(){const a=lvNorm($('fA').value.trim());if(!a)return toast('Enter a 0x wallet address.',false);lvStore.set('rvScanLastAddr',a);const b=$('fGo');b.disabled=true;b.textContent='Sending…';
+  try{const r=await fetch(LV_FAUCET+'/v2/gas',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({FixedAmountRequest:{recipient:a}})});const j=await r.json();if(j.status!=='Success'||!(j.coins_sent||[]).length)throw new Error('faucet');
+   const d=j.coins_sent[0].transferTxDigest;const tot=j.coins_sent.reduce((x,c)=>x+c.amount,0)/1e9;$('fR').innerHTML='<div class="okbox"><b>'+fmt(tot)+' test RVRB sent.</b><div class="kv"><div><span>To</span><span>'+lvAddr(a,8)+'</span></div><div><span>Transaction</span><span><a class="alink mono" href="#explorer-tx-'+d+'">'+short(d,8)+'</a></span></div></div></div>';toast(fmt(tot)+' test RVRB is on its way.');
+  }catch(e){$('fR').innerHTML='<div class="errbox">The faucet did not answer. It runs next to the testnet; if the testnet is online, try again in a minute.</div>';}b.disabled=false;b.textContent='Send me 50 test RVRB';}
+};
+
+/* ---------- boot ---------- */
+async function lvBoot(){Object.assign(ACTS,LACT);EX.txView=EX.txView||'table';
+ V.length=0;S.cps=[];S.txs=[];S.pays=[];S.arcs=[];S.xc=[];S.alerts=[];S.mix={transfer:0,defi:0,bank:0,private:0,system:0};S.mixHist=[];S.finHist=new Array(12).fill(0);S.hist={tps:[],fin:[],t:[]};
+ S.tps=0;S.fin=0;S.p95=0;S.peak=0;S.halted=false;S.load=0;S.connected=false;S.W.mine=[];S.light=0;S.accounts=0;S.totalTx=0;S.txToday=0;S.feesToday=0;S.cp=0;S.reserve=MINED;S.emitted=0;
+ $('root').innerHTML='<div class="lvload">'+logoSvg(64)+'<b>Rivers Scan</b><span>Connecting to the Rivers testnet…</span></div>';
+ await lvPollSystem();await lvPoll();lvPollWallets().then(()=>{if(LV.ready)updateView();});
+ LV.ready=true;route();
+ setInterval(lvPoll,1500);setInterval(lvPollSystem,15000);setInterval(lvPollWallets,30000);
+ new MutationObserver(()=>lvRelabel($('page'))).observe($('root'),{childList:true,subtree:true});lvRelabel();
+ if(!reduce)requestAnimationFrame(loop);}
+function contShares(){const cs={};CONTS.forEach(c=>cs[c]={power:0,n:0,on:0,stake:0});V.forEach(v=>{const x=cs[v.city.c];if(!x||v.jailed)return;x.power+=v.power;x.n++;x.stake+=v.stake;if(v.on)x.on++;});return cs;}
