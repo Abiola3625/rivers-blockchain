@@ -1,74 +1,32 @@
-<p align="center">
-<img src="https://raw.githubusercontent.com/MystenLabs/sui-docs/refs/heads/main/sites/sui/static/img/logo.svg" alt="Logo" width="100" height="100">
-</p>
+# Rivers Blockchain
 
-# Welcome to Sui
+Rivers is a layer 1 blockchain for payments, DeFi and institutions. Its native token is **RVRB**.
 
-[![Github release](https://img.shields.io/github/v/release/MystenLabs/sui.svg?sort=semver)](https://github.com/MystenLabs/sui/releases/latest)
-[![License](https://img.shields.io/github/license/MystenLabs/sui)](https://github.com/MystenLabs/sui/blob/main/LICENSE)
+| | |
+|---|---|
+| Maximum supply | 21,000,000 RVRB |
+| At genesis | 10,000,000 RVRB |
+| Staking rewards | 11,000,000 RVRB over 50 years, halving every 5 years |
+| Smart contracts | Move |
+| Consensus | Proof of Confluence, built on Mysticeti |
 
-[Sui](https://sui.io) is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by the [Move programming language](https://github.com/MystenLabs/awesome-move).
+## What is in this repository
 
-## Sui Highlights
+- The Rivers node, validator and command-line tool (`crates/`, `consensus/`).
+- The RVRB token and staking rules (`crates/sui-framework/packages/`).
+- Investor vesting contract (`rivers-packages/vesting`).
+- Testnet genesis wallet addresses (`rivers-testnet/`).
 
-Sui offers the following benefits and capabilities:
+[RIVERS.md](RIVERS.md) lists every change Rivers makes, the supply plan, test results and how to run a local network.
 
- * Unmatched scalability, instant settlement
- * A safe smart contract language accessible to mainstream developers
- * Ability to define rich and composable on-chain assets
- * Better user experience for web3 apps
+## Run a local network
 
-Sui is the only blockchain today that can scale with the growth of web3 while achieving industry-leading performance, cost, programmability, and usability. Sui demonstrates capacity beyond the transaction processing capabilities of established systems – traditional and blockchain alike. Sui is the first internet-scale programmable blockchain platform, a foundational layer for web3.
-
-## Sui Architecture
-
-```mermaid
-flowchart LR
-    CC(CLI Client) --> ClientService
-    RC(Rest Client) --> ClientService
-    RPCC(RPC Client) --> ClientService
-    ClientService --> AuthorityAggregator
-    AuthorityAggregator --> AC1[AuthorityClient] & AC2[AuthorityClient]
-    subgraph Authority1
-      AS[AuthorityState]
-    end
-    subgraph Authority2
-      AS2[AuthorityState]
-    end
-    AC1 <==>|Network TCP| Authority1
-    AC2 <==>|Network TCP| Authority2
+```bash
+cargo build --bin sui
+./target/debug/sui start --force-regenesis --with-faucet --committee-size 4
 ```
 
-## Sui Overview
+## Credits and licence
 
-Sui is a smart contract platform maintained by a permissionless set of authorities that play a role similar to validators or miners in other blockchain systems.
-
-Sui offers scalability and unprecedented low-latency for common use cases. Sui makes the vast majority of transactions processable in parallel, which makes better use of processing resources, and offers the option to increase throughput with more resources. Sui forgoes consensus to instead use simpler and lower-latency primitives for common use cases, such as payment transactions and asset transfers. This is unprecedented in the blockchain world and enables a number of new latency-sensitive distributed applications, ranging from gaming to retail payment at physical points of sale.
-
-Sui is written in [Rust](https://www.rust-lang.org) and supports smart contracts written in the [Move programming language](https://github.com/move-language/move) to define assets that may have an owner. Move programs define operations on these assets including custom rules for their creation, the transfer of these assets to new owners, and operations that mutate assets.
-
-Sui has a native token called SUI, with a fixed supply. The SUI token is used to pay for gas, and is also used as [delegated stake on authorities](https://learn.bybit.com/blockchain/delegated-proof-of-stake-dpos/) within an epoch. The voting power of authorities within this epoch is a function of this delegated stake. Authorities are periodically reconfigured according to the stake delegated to them. In any epoch, the set of authorities is [Byzantine fault tolerant](https://pmg.csail.mit.edu/papers/osdi99.pdf). At the end of the epoch, fees collected through all transactions processed are distributed to authorities according to their contribution to the operation of the system. Authorities can in turn share some of the fees as rewards to users that delegated stakes to them.
-
-Sui is supported by several cutting-edge [peer-reviewed studies](https://docs.sui.io/references/research-papers) and extensive years of open-source development.
-
-## More About Sui
-
-Use the following links to learn more about Sui and the Sui ecosystem:
-
- * Learn more about working with Sui in the [Sui Documentation](https://docs.sui.io/).
- * Join the Sui community on [Sui Discord](https://discord.gg/sui).
- * Find out more about the Sui ecosystem on the [Sui Resources](https://sui.io/resources/) page.
- * Review information about Sui governance, [decentralization](https://suifoundation.org/decentralization), and [Developer Grants Program](https://sui.io/grants-hub) on the [Sui Foundation](https://sui.io/about) site.
-
-
- ## How to Contribute
-
- See the [Contributing Guide](CONTRIBUTING.md) for details on how to contribute to Sui.
-
- ## Code of Conduct
-
- See the [Code of Conduct](CODE_OF_CONDUCT.MD) for details on our code of conduct.
-
- ## License
-
- See the [LICENSE](LICENSE) file for more details.
+Rivers is built on [Sui](https://github.com/MystenLabs/sui) by Mysten Labs, release `mainnet-v1.83.1`,
+used under the Apache 2.0 licence (see [LICENSE](LICENSE)). The original Sui readme is in [README-SUI.md](README-SUI.md).
