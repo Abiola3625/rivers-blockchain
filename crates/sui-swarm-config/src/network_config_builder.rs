@@ -518,18 +518,28 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
         let (mut account_keys, allocations) = genesis_config.generate_accounts(&mut rng).unwrap();
 
-        // Every Rivers genesis wallet gets its own key. The keys are saved with the other
-        // account keys so the local keystore can sign for them.
+        // A public network reads the genesis wallet addresses from the file named by
+        // RIVERS_GENESIS_ADDRESSES (one `name-n=0x...` line per wallet), so the private keys
+        // never leave the owners' devices. Without the file, every wallet gets a new key that is
+        // saved with the other account keys, which suits a local network.
+        let provided = std::env::var("RIVERS_GENESIS_ADDRESSES")
+            .ok()
+            .map(|path| read_rivers_genesis_addresses(&path));
         let rivers_wallets: Vec<(&'static str, u64, Vec<SuiAddress>)> =
             sui_types::gas_coin::RIVERS_GENESIS_GROUPS
                 .iter()
                 .map(|(name, total, count)| {
-                    let addresses = (0..*count)
-                        .map(|_| {
-                            let (address, key): (SuiAddress, AccountKeyPair) =
-                                get_key_pair_from_rng(&mut rng);
-                            account_keys.push(key);
-                            address
+                    let addresses = (1..=*count)
+                        .map(|n| match &provided {
+                            Some(map) => *map.get(&format!("{name}-{n}")).unwrap_or_else(|| {
+                                panic!("RIVERS_GENESIS_ADDRESSES has no address for {name}-{n}")
+                            }),
+                            None => {
+                                let (address, key): (SuiAddress, AccountKeyPair) =
+                                    get_key_pair_from_rng(&mut rng);
+                                account_keys.push(key);
+                                address
+                            }
                         })
                         .collect();
                     (*name, *total, addresses)
@@ -850,4 +860,23 @@ mod test {
 
         assert_eq!(&effects, genesis.effects());
     }
+}
+
+fn read_rivers_genesis_addresses(path: &str) -> std::collections::BTreeMap<String, SuiAddress> {
+    let text = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("Cannot read RIVERS_GENESIS_ADDRESSES file {path}: {e}"));
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| {
+            let (name, address) = line
+                .split_once('=')
+                .unwrap_or_else(|| panic!("Expected `name-n=0x...`, found `{line}`"));
+            let address = address
+                .trim()
+                .parse::<SuiAddress>()
+                .unwrap_or_else(|e| panic!("Invalid address for {}: {e}", name.trim()));
+            (name.trim().to_string(), address)
+        })
+        .collect()
 }

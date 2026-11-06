@@ -100,7 +100,8 @@ use crate::validator_commands::SuiValidatorCommand;
 
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
 
-const DEFAULT_FAUCET_MIST_AMOUNT: u64 = 200_000_000_000; // 200 SUI
+// The faucet sends 5 coins per request from one 1,000 RVRB gas coin, so each coin is 10 RVRB.
+const DEFAULT_FAUCET_MIST_AMOUNT: u64 = 10_000_000_000;
 const DEFAULT_FAUCET_PORT: u16 = 9123;
 
 const DEFAULT_CONSISTENT_STORE_PORT: u16 = 9124;
