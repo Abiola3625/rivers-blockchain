@@ -16,6 +16,7 @@ This file records every change Rivers makes on top of Sui, so that upstream fixe
 | Public genesis wallets | `crates/sui-swarm-config/src/network_config_builder.rs` | `RIVERS_GENESIS_ADDRESSES=<file>` reads the 14 genesis wallet addresses from a file, so the owners keep their private keys on their own devices |
 | Local faucet | `crates/sui/src/sui_commands.rs` | Sends 5 coins of 10 RVRB per request, so one 1,000 RVRB gas coin can serve many requests |
 | Investor vesting | `rivers-packages/vesting` | Move package `rivers_vesting::vesting`: lock RVRB or any token for an investor, with an unlock at start, a cliff and linear unlocking; claim, revoke, batch issue and change of wallet |
+| Public testnet | `rivers-testnet/`, `.github/workflows/rivers-build.yml` | GitHub Actions builds Linux binaries; `setup.sh` turns a fresh Ubuntu server into a 4-validator testnet with daily epochs, public RPC and faucet. Upstream Sui workflows moved to `.github/sui-workflows-disabled/` |
 | Compiled framework | `crates/sui-framework/packages_compiled/` | Regenerated with `UPDATE=1 cargo test -p sui-framework --test build-system-packages` |
 
 The Move type is still `0x2::sui::SUI`. Renaming the type would touch thousands of files and break
