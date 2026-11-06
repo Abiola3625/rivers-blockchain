@@ -573,9 +573,8 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             // and test gas comes out of the community wallets, so the genesis supply stays at
             // exactly 10M RVRB. On a public network every wallet must be a multisig address.
             let stake_total: u64 = validators.iter().map(|v| v.stake).sum();
-            let gas_total = sui_types::gas_coin::TOTAL_SUPPLY_MIST
-                - builder.remaining_mist()
-                - stake_total;
+            let gas_total =
+                sui_types::gas_coin::TOTAL_SUPPLY_MIST - builder.remaining_mist() - stake_total;
             for (name, total, addresses) in &rivers_wallets {
                 let amount = match *name {
                     "validator-bootstrap" => total.saturating_sub(stake_total),
@@ -589,7 +588,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     } else {
                         amount / count
                     };
-                    tracing::info!("Rivers genesis wallet {name}-{}: {address} ({share} mist)", i + 1);
+                    tracing::info!(
+                        "Rivers genesis wallet {name}-{}: {address} ({share} mist)",
+                        i + 1
+                    );
                     if share > 0 {
                         builder.add_allocation(TokenAllocation {
                             recipient_address: *address,
