@@ -33,3 +33,8 @@
 .chkrow{display:flex;gap:8px;align-items:center;font-size:.82rem}
 #walBody .btn.wide{width:100%;justify-content:center}
 #walBody .btn[disabled]{opacity:.6;pointer-events:none}
+/* Token Studio */
+#stSteps .spin{display:inline-block;width:14px;height:14px;border-width:2px}
+#stM .cap{margin-top:8px}
+#stM{display:grid;gap:10px}
+#stM[hidden]{display:none}

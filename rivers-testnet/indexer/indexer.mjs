@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS hourly(hour INTEGER PRIMARY KEY, tx_all INTEGER DEFAU
   fees INTEGER DEFAULT 0, volume INTEGER DEFAULT 0, new_accts INTEGER DEFAULT 0, active INTEGER DEFAULT 0, checkpoints INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS hour_active(hour INTEGER, addr TEXT, PRIMARY KEY(hour, addr));
 CREATE TABLE IF NOT EXISTS day_active(day INTEGER, addr TEXT, PRIMARY KEY(day, addr));
+CREATE TABLE IF NOT EXISTS token(coin_type TEXT PRIMARY KEY, first_cp INTEGER, first_ts INTEGER, creator TEXT, digest TEXT,
+  name TEXT, symbol TEXT, decimals INTEGER, description TEXT, icon TEXT, regulated INTEGER DEFAULT 0, meta_at INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS tok_bal(coin_type TEXT, addr TEXT, bal INTEGER, PRIMARY KEY(coin_type, addr));
+CREATE INDEX IF NOT EXISTS tok_bal_top ON tok_bal(coin_type, bal DESC);
+CREATE TABLE IF NOT EXISTS tok_tx(coin_type TEXT, digest TEXT, cp INTEGER, ts INTEGER, sender TEXT, recipient TEXT, amount INTEGER, PRIMARY KEY(coin_type, digest));
+CREATE INDEX IF NOT EXISTS tok_tx_cp ON tok_tx(coin_type, cp DESC);
 CREATE TABLE IF NOT EXISTS epoch(epoch INTEGER PRIMARY KEY, start_ts INTEGER, first_cp INTEGER, total_stake INTEGER, rgp INTEGER);
 CREATE TABLE IF NOT EXISTS val_epoch(epoch INTEGER, addr TEXT, name TEXT, pool TEXT, stake INTEGER, rewards_pool INTEGER,
   pool_tokens INTEGER, commission INTEGER, PRIMARY KEY(epoch, addr));
@@ -60,6 +66,10 @@ const qHour = db.prepare(`INSERT INTO hourly(hour,tx_all,tx_user,tx_activity,fee
   fees=fees+excluded.fees, volume=volume+excluded.volume, new_accts=new_accts+excluded.new_accts, checkpoints=checkpoints+excluded.checkpoints`);
 const qHourActive = db.prepare('INSERT OR IGNORE INTO hour_active VALUES(?,?)');
 const qDayActive = db.prepare('INSERT OR IGNORE INTO day_active VALUES(?,?)');
+const qTokNew = db.prepare('INSERT OR IGNORE INTO token(coin_type, first_cp, first_ts, creator, digest) VALUES(?,?,?,?,?)');
+const qTokBal = db.prepare('INSERT INTO tok_bal VALUES(?,?,?) ON CONFLICT(coin_type, addr) DO UPDATE SET bal=bal+excluded.bal');
+const qTokTx = db.prepare('INSERT OR IGNORE INTO tok_tx VALUES(?,?,?,?,?,?,?)');
+const newTokens = new Set();
 const qBal = db.prepare('UPDATE acct SET balance=?, bal_at=? WHERE addr=?');
 
 const toMs = (t) => (t ? Number(t.seconds) * 1000 + Math.floor((t.nanos || 0) / 1e6) : 0);
@@ -116,8 +126,14 @@ function storeCheckpoint(cp) {
     const fee = BigInt(g.computationCost || 0) + BigInt(g.storageCost || 0) - BigInt(g.storageRebate || 0);
     fees += fee;
     const deltas = new Map();
+    const tok = new Map();
     for (const b of tx.balanceChanges || []) {
-      if (b.coinType !== RVRB) continue;
+      if (b.coinType !== RVRB) {
+        const m = tok.get(b.coinType) || new Map();
+        m.set(b.address, (m.get(b.address) || 0n) + BigInt(b.amount));
+        tok.set(b.coinType, m);
+        continue;
+      }
       deltas.set(b.address, (deltas.get(b.address) || 0n) + BigInt(b.amount));
     }
     deltas.set(sender, deltas.get(sender) || 0n);
@@ -131,6 +147,19 @@ function storeCheckpoint(cp) {
       qAcctTx.run(a, tx.digest, seq, ts, v);
       const isSender = a === sender;
       qAcctUpd.run(ts, isSender ? 1 : 0, isSender && amount > 0n ? amount : 0n, !isSender && v > 0n ? v : 0n, activity, a);
+    }
+    for (const [ct, m] of tok) {
+      if (qTokNew.run(ct, seq, ts, sender, tx.digest).changes) newTokens.add(ct);
+      let moved = 0n, to = null;
+      for (const [a, v] of m) {
+        qTokBal.run(ct, a, v);
+        seeAccount(a, seq, ts);
+        qAcctTx.run(a, tx.digest, seq, ts, 0n);
+        if (a !== sender && v > 0n) { moved += v; to = to || a; }
+      }
+      // Without a recipient the transaction changed the supply: a positive sum is a mint, a negative sum a burn.
+      if (!to) for (const v of m.values()) moved += v;
+      qTokTx.run(ct, tx.digest, seq, ts, sender, to, moved);
     }
     qHourActive.run(hour, sender);
     qDayActive.run(day, sender);
@@ -199,6 +228,20 @@ async function refreshBalances() {
   }));
 }
 
+// Token names, symbols and decimals come from the coin registry through GetCoinInfo.
+async function refreshTokens() {
+  const list = [...newTokens, ...db.prepare('SELECT coin_type FROM token WHERE meta_at<?').all(Date.now() - 3600000).map((r) => r.coin_type)].slice(0, 50);
+  for (const ct of new Set(list)) {
+    try {
+      const r = (await state.getCoinInfo({ coinType: ct })).response;
+      const m = r.metadata || {};
+      db.prepare('UPDATE token SET name=?, symbol=?, decimals=?, description=?, icon=?, regulated=?, meta_at=? WHERE coin_type=?')
+        .run(m.name || '', m.symbol || ct.split('::').pop(), Number(m.decimals || 0), m.description || '', m.iconUrl || '', r.regulatedMetadata ? 1 : 0, Date.now(), ct);
+      newTokens.delete(ct);
+    } catch (e) { /* the registry entry may not be finalized yet */ }
+  }
+}
+
 const EP_MASK = { paths: ['epoch', 'first_checkpoint', 'start', 'reference_gas_price', 'system_state.validators.total_stake',
   'system_state.validators.active_validators.address', 'system_state.validators.active_validators.name',
   'system_state.validators.active_validators.commission_rate', 'system_state.validators.active_validators.staking_pool'] };
@@ -250,7 +293,29 @@ function rewardsFor(addr) {
   });
 }
 
+const TOK_COLS = `t.coin_type coinType, t.name, t.symbol, t.decimals, t.description, t.icon, t.regulated, t.creator, t.first_cp firstCp, t.first_ts firstTs, t.digest,
+  (SELECT COUNT(*) FROM tok_bal b WHERE b.coin_type=t.coin_type AND b.bal>0) holders,
+  (SELECT CAST(SUM(bal) AS TEXT) FROM tok_bal b WHERE b.coin_type=t.coin_type) supply,
+  (SELECT COUNT(*) FROM tok_tx x WHERE x.coin_type=t.coin_type) transfers`;
+// Supplies are returned as strings in base units because they can exceed 2^53.
+function token(ct, q, sub) {
+  if (sub === 'holders') {
+    const limit = Math.min(500, Number(q.get('limit') || 100));
+    return db.prepare('SELECT addr, CAST(bal AS TEXT) balance FROM tok_bal WHERE coin_type=? AND bal>0 ORDER BY bal DESC LIMIT ?').all(ct, limit);
+  }
+  if (sub === 'txs') {
+    const limit = Math.min(200, Number(q.get('limit') || 50));
+    return db.prepare('SELECT digest, cp, ts, sender, recipient, CAST(amount AS TEXT) amount FROM tok_tx WHERE coin_type=? ORDER BY cp DESC LIMIT ?').all(ct, limit);
+  }
+  return db.prepare(`SELECT ${TOK_COLS} FROM token t WHERE t.coin_type=?`).get(ct) || { error: 'Unknown token' };
+}
+
 const routes = {
+  '/tokens': () => db.prepare(`SELECT ${TOK_COLS} FROM token t ORDER BY holders DESC, t.first_cp`).all(),
+  '/account-tokens': (q) => {
+    const a = norm(q.get('addr'));
+    return a ? db.prepare(`SELECT ${TOK_COLS}, CAST(b.bal AS TEXT) balance FROM tok_bal b JOIN token t ON t.coin_type=b.coin_type WHERE b.addr=? AND b.bal>0`).all(a) : [];
+  },
   '/status': () => ({ checkpoint: next - 1, latest, synced: next > latest, rpc: RPC,
     accounts: db.prepare('SELECT COUNT(*) c FROM acct').get().c, transactions: db.prepare('SELECT COUNT(*) c FROM tx').get().c }),
   '/summary': () => {
@@ -311,8 +376,10 @@ http.createServer((req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   let out, code = 200;
   try {
+    const tm = u.pathname.match(/^\/token\/([^/]+)(?:\/(holders|txs))?$/);
     const m = u.pathname.match(/^\/account\/([^/]+)(?:\/(txs|daily))?$/);
-    if (m) { const a = norm(m[1]); out = a ? account(a, u.searchParams, m[2]) : (code = 400, { error: 'Invalid address' }); }
+    if (tm) out = token(decodeURIComponent(tm[1]), u.searchParams, tm[2]);
+    else if (m) { const a = norm(m[1]); out = a ? account(a, u.searchParams, m[2]) : (code = 400, { error: 'Invalid address' }); }
     else if (routes[u.pathname]) out = routes[u.pathname](u.searchParams);
     else { code = 404; out = { error: 'Not found' }; }
   } catch (e) { code = 500; out = { error: e.message }; }
@@ -326,6 +393,7 @@ async function loop() {
   setInterval(sync, 1000);
   setInterval(refreshBalances, 5000);
   setInterval(syncEpochs, 60000);
+  setInterval(refreshTokens, 4000);
   setInterval(rollupActive, 60000);
   sync();
 }
