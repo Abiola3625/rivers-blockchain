@@ -541,6 +541,22 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 builder.add_allocation(gas_coin);
                 builder.add_allocation(stake);
             }
+            // Rivers keeps exactly 11M RVRB for staking rewards. Genesis RVRB that is not
+            // assigned to accounts or validators goes to the first account as a genesis reserve.
+            let reserve = builder
+                .remaining_mist()
+                .checked_sub(sui_types::gas_coin::RIVERS_MINED_SUPPLY_MIST)
+                .expect("local network allocations exceed the 10M RVRB genesis supply");
+            if reserve > 0 {
+                let recipient = builder
+                    .first_recipient()
+                    .expect("local network needs at least one account");
+                builder.add_allocation(TokenAllocation {
+                    recipient_address: recipient,
+                    amount_mist: reserve,
+                    staked_with_validator: None,
+                });
+            }
             builder.build()
         };
 

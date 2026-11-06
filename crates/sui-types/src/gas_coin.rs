@@ -25,7 +25,13 @@ use crate::{
 pub const MIST_PER_SUI: u64 = 1_000_000_000;
 
 /// Total supply denominated in Sui
-pub const TOTAL_SUPPLY_SUI: u64 = 10_000_000_000;
+pub const TOTAL_SUPPLY_SUI: u64 = 21_000_000;
+
+/// RVRB in existence at genesis. The rest of the maximum supply funds staking rewards.
+pub const RIVERS_GENESIS_SUPPLY_MIST: u64 = 10_000_000 * MIST_PER_SUI;
+
+/// RVRB paid out as staking rewards over 50 years (10 eras of 5 years, halving each era).
+pub const RIVERS_MINED_SUPPLY_MIST: u64 = 11_000_000 * MIST_PER_SUI;
 
 // Note: cannot use checked arithmetic here since `const unwrap` is still unstable.
 /// Total supply denominated in Mist

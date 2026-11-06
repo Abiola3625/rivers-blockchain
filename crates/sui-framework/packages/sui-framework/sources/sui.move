@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Coin<SUI> is the token used to pay for gas in Sui.
-/// It has 9 decimals, and the smallest unit (10^-9) is called "mist".
+/// Coin<SUI> is RVRB, the native token of the Rivers blockchain. It pays for gas and secures the network through staking.
+/// The type keeps the name SUI so that Sui tooling and the Move framework stay compatible.
+/// It has 9 decimals, and the smallest unit (10^-9) is called a "drop" in Rivers interfaces ("mist" in code).
 module sui::sui;
 
 use sui::balance::Balance;
@@ -18,11 +19,12 @@ const ENotSystemAddress: u64 = 1;
 const MIST_PER_SUI: u64 = 1_000_000_000;
 
 #[allow(unused_const)]
-/// The total supply of Sui denominated in whole Sui tokens (10 Billion)
-const TOTAL_SUPPLY_SUI: u64 = 10_000_000_000;
+/// The maximum supply of RVRB in whole tokens (21 million).
+/// 10 million exist at genesis and 11 million are paid out as staking rewards over 50 years.
+const TOTAL_SUPPLY_SUI: u64 = 21_000_000;
 
-/// The total supply of Sui denominated in Mist (10 Billion * 10^9)
-const TOTAL_SUPPLY_MIST: u64 = 10_000_000_000_000_000_000;
+/// The maximum supply of RVRB denominated in Mist (21 million * 10^9)
+const TOTAL_SUPPLY_MIST: u64 = 21_000_000_000_000_000;
 
 /// Name of the coin
 public struct SUI has drop {}
@@ -37,10 +39,9 @@ fun new(ctx: &mut TxContext): Balance<SUI> {
     let (treasury, metadata) = coin::create_currency(
         SUI {},
         9,
-        b"SUI",
-        b"Sui",
-        // TODO: add appropriate description and logo url
-        b"",
+        b"RVRB",
+        b"Rivers",
+        b"Native token of the Rivers blockchain",
         option::none(),
         ctx,
     );

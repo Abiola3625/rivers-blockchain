@@ -431,18 +431,19 @@ impl GenesisCeremonyParameters {
     }
 
     fn default_initial_stake_subsidy_distribution_amount() -> u64 {
-        // 1M Sui
-        1_000_000 * sui_types::gas_coin::MIST_PER_SUI
+        // Rivers era 1 pays 11M / (2 * (1 - 2^-10)) RVRB over 1,825 daily epochs, so that
+        // ten halvings pay out the full 11M RVRB reward fund by year 50.
+        3_016_644_572_101
     }
 
     fn default_stake_subsidy_period_length() -> u64 {
-        // 10 distributions or epochs
-        10
+        // One Rivers era: 5 years of daily epochs.
+        1_825
     }
 
     fn default_stake_subsidy_decrease_rate() -> u16 {
-        // 10% in basis points
-        1000
+        // Rewards halve at the end of every era (50% in basis points).
+        5000
     }
 
     #[allow(deprecated)]
@@ -642,6 +643,15 @@ impl TokenDistributionScheduleBuilder {
                 staked_with_validator: Some(validator),
             });
         }
+    }
+
+    /// RVRB not yet allocated. Whatever remains at build time funds staking rewards.
+    pub fn remaining_mist(&self) -> u64 {
+        self.pool
+    }
+
+    pub fn first_recipient(&self) -> Option<SuiAddress> {
+        self.allocations.first().map(|a| a.recipient_address)
     }
 
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {

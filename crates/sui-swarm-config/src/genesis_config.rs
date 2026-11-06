@@ -274,7 +274,8 @@ fn default_multiaddr_address() -> Multiaddr {
 }
 
 fn default_stake() -> u64 {
-    20_000_000_000_000_000
+    // 1,000,000 RVRB per validator on a Rivers local network.
+    1_000_000_000_000_000
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
@@ -296,7 +297,8 @@ pub struct AccountConfig {
     pub gas_amounts: Vec<u64>,
 }
 
-pub const DEFAULT_GAS_AMOUNT: u64 = 30_000_000_000_000_000;
+// 20,000 RVRB per gas coin on a Rivers local network.
+pub const DEFAULT_GAS_AMOUNT: u64 = 20_000_000_000_000;
 pub const DEFAULT_NUMBER_OF_AUTHORITIES: usize = 4;
 const DEFAULT_NUMBER_OF_ACCOUNT: usize = 5;
 pub const DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT: usize = 5;

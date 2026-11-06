@@ -26,7 +26,7 @@ pub const MAX_VALIDATOR_COUNT: u64 = 150;
 /// Lower-bound on the amount of stake required to become a validator.
 ///
 /// 30 million SUI
-pub const MIN_VALIDATOR_JOINING_STAKE_MIST: u64 = 30_000_000 * MIST_PER_SUI;
+pub const MIN_VALIDATOR_JOINING_STAKE_MIST: u64 = 10_000 * MIST_PER_SUI;
 
 #[deprecated(note = "SIP-39 removes low barreier for joining the validator set")]
 /// Deprecated: with SIP-39 there is no longer a minimum stake requirement.
@@ -36,14 +36,14 @@ pub const MIN_VALIDATOR_JOINING_STAKE_MIST: u64 = 30_000_000 * MIST_PER_SUI;
 /// threshold for more than `validator_low_stake_grace_period` number of epochs.
 ///
 /// 20 million SUI
-pub const VALIDATOR_LOW_STAKE_THRESHOLD_MIST: u64 = 20_000_000 * MIST_PER_SUI;
+pub const VALIDATOR_LOW_STAKE_THRESHOLD_MIST: u64 = 5_000 * MIST_PER_SUI;
 
 #[deprecated(note = "SIP-39 removes very low barreier for joining the validator set")]
 /// Validators with stake below `validator_very_low_stake_threshold` will be removed
 /// immediately at epoch change, no grace period.
 ///
 /// 15 million SUI
-pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_MIST: u64 = 15_000_000 * MIST_PER_SUI;
+pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_MIST: u64 = 2_500 * MIST_PER_SUI;
 
 /// Number of epochs for a single phase of SIP-39 since the change
 pub const SIP_39_PHASE_LENGTH: u64 = 14;
