@@ -120,3 +120,21 @@ Local network test: the foundation-1 wallet issued 10,000 RVRB each to two inves
 2-minute cliff, 10-minute duration). Investor A claimed 1,000 RVRB at once, was refused a second claim
 before the cliff, then claimed 2,458.485 RVRB after it. Revoking investor B returned 6,505.11 RVRB and
 kept 3,494.89 RVRB for investor B.
+
+## Rivers Scan services (testnet)
+
+| Part | Source | What it does |
+|---|---|---|
+| Rivers Wallet | `apps/scan/src/scanwallet.js` | Self-custody wallet inside Scan. 12 recovery words, encrypted in the browser with PBKDF2 and AES-GCM. Send, receive, stake, unstake, test RVRB, created tokens. |
+| Rivers indexer | `rivers-testnet/indexer/indexer.mjs` | Reads every checkpoint into SQLite. Serves accounts, history, hourly and daily activity, holders, validator rewards per epoch, tokens and DEX pools on port 9200. |
+| Token Studio | `rivers-packages/token-studio`, `apps/scan/src/scanstudio.js` | Creates a token from a compiled Move template in the browser: fixed, burn only, mintable or capped; optional pause and freeze; optional USDs pool. The package is made immutable and the currency is registered in the coin registry. |
+| Rivers DEX | `rivers-packages/dex`, `rivers-testnet/indexer/dex-setup.mjs`, `apps/scan/src/scandex.js` | Constant-product pools with a 0.30% fee to liquidity providers, LP coins, USDs and NGNs test stablecoins with faucets. Scan has Swap and Pools pages and shows testnet prices, the liquidity map and token rankings. |
+
+Move tests: `rivers move test -e testnet` in `rivers-packages/dex` (5 tests) and
+`rivers-packages/vesting` (8 tests).
+
+After changing `rivers-packages/token-studio`, rebuild it and regenerate
+`apps/scan/src/studio-template.js`. After changing `rivers-packages/dex`, regenerate
+`rivers-testnet/indexer/dex-bytecode.json` with `rivers move build -e testnet --dump-bytecode-as-base64`
+and run `npm run build` in `rivers-testnet/indexer`. A testnet that already has the DEX keeps the
+published version.

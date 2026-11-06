@@ -131,8 +131,20 @@ indexer_start() {
     curl -fsSL "https://nodejs.org/dist/$NODE_VER/node-$NODE_VER-linux-$arch.tar.xz" | tar -xJ -C "$DATA/node" --strip-components=1
   fi
   pkill -f "rivers-indexer.mjs" >/dev/null 2>&1 || true
-  RIVERS_INDEXER_DB="$DATA/indexer.db" NODE_NO_WARNINGS=1 \
+  RIVERS_INDEXER_DB="$DATA/indexer.db" RIVERS_DEX_CONFIG="$DATA/dex.json" NODE_NO_WARNINGS=1 \
     nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-indexer.mjs" >>"$DATA/indexer.log" 2>&1 &
+}
+
+# Rivers DEX: publishes the DEX package and the USDs and NGNs test stablecoins once, then creates the
+# first pools. The starting prices are testnet prices with no real value.
+RVRB_PRICE_USDS=1
+USDS_PRICE_NGNS=1500
+dex_setup() {
+  [ -f "$DATA/dex.json" ] && grep -q '"ready": true' "$DATA/dex.json" && return 0
+  mkdir -p "$DATA/dex"
+  RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \
+    RIVERS_PRICE_RVRB_USDS="$RVRB_PRICE_USDS" RIVERS_PRICE_USDS_NGNS="$USDS_PRICE_NGNS" \
+    "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-dex-setup.mjs" >>"$DATA/dex.log" 2>&1
 }
 
 start() {
@@ -150,6 +162,7 @@ start() {
     fi
   fi
   indexer_start || echo "Indexer did not start; see $DATA/indexer.log" >&2
+  pgrep -f "rivers-dex-setup.mjs" >/dev/null || nohup bash "$0" dex_setup >/dev/null 2>&1 &
   # Make the ports reachable from the internet. This can also be done in the Ports tab.
   gh codespace ports visibility 9000:public 9123:public 9200:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
   base="${CODESPACE_NAME}-PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"

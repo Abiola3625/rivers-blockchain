@@ -17,7 +17,7 @@ async function stMeta(ct){if(ST.meta[ct])return ST.meta[ct];try{const r=(await S
 
 /* ---------- Create page ---------- */
 delete LV_SOON_PAGES.create;
-Object.assign(TS,{pool:false,shield:false,vest:false,feePct:0,dec:9,supply:10000000,maxAmt:50000000});
+Object.assign(TS,{poolTok:100000,poolUsd:500,pool:false,shield:false,vest:false,feePct:0,dec:9,supply:10000000,maxAmt:50000000});
 const ST_SOON_FEAT={shield:'Shielded transfers',vest:'Team vesting'};
 function stFlags(){const mint=TS.maxMode!=='fixed';const reg=!!(TS.pause||TS.freeze);return {mint,burn:!!TS.burn,reg,flags:(mint?1:0)|(TS.burn?2:0)|(reg?4:0)};}
 tsMove=function(){const s=(TS.sym||'TOKEN').toUpperCase().replace(/[^A-Z0-9]/g,'')||'TOKEN';const f=stFlags();const i=stUnits(TS.supply||0,TS.dec),m=TS.maxMode==='capped'?stUnits(TS.maxAmt||0,TS.dec):0n;const q=x=>JSON.stringify(String(x));
@@ -31,6 +31,7 @@ tsIssues=function(){const e=[];const s=(TS.sym||'').trim().toUpperCase();
   if(!(TS.name||'').trim())e.push('Give the token a name.');if((TS.name||'').length>64)e.push('Keep the name under 64 characters.');
   const i=stUnits(TS.supply||0,TS.dec);if(i==null||i<=0n)e.push('Initial supply must be a whole number above zero.');else if(i>U64MAX)e.push('Supply is too large for '+TS.dec+' decimals. Lower the supply or the decimals.');
   if(TS.maxMode==='capped'){const m=stUnits(TS.maxAmt||0,TS.dec);if(m==null||m>U64MAX)e.push('Maximum supply is too large for '+TS.dec+' decimals.');else if(i!=null&&m<i)e.push('The cap cannot be below the initial supply.');}
+  if(TS.pool&&dReady()){if(!(TS.poolTok>0)||!(TS.poolUsd>0))e.push('Enter the token and USDs amounts for the pool.');else if(TS.poolTok>TS.supply)e.push('The pool amount is more than the initial supply.');else if(TS.poolUsd>dBal(DEX.cfg.coins.USDs))e.push('You need '+fmt(TS.poolUsd)+' USDs for the pool. Claim test USDs on the Swap page.');}
   if(TS.type==='NFT collection')e.push('NFT collections are coming soon. Choose another type.');
   if(!WAL.kp)e.push('Unlock your wallet to create a token.');else if(WAL.bal<0.2)e.push('Your wallet needs at least 0.2 RVRB for the network fee. Use Test RVRB in your wallet.');
   return e;};
@@ -40,13 +41,14 @@ tsIssues=function(){const e=[];const s=(TS.sym||'').trim().toUpperCase();
  c.build=function(){let h=b.call(this);return h;};
  c.after=function(){if(!S.connected)return;a.call(this);
   $$('[data-act=tstype]').forEach(el=>{if(el.dataset.v==='NFT collection'){lvSoon(el,'NFT collections');el.disabled=true;}});
-  $$('[data-ts]').forEach(i=>{const k=i.dataset.ts;if(ST_SOON_FEAT[k]||k==='pool'){i.checked=false;i.disabled=true;lvSoon(i.closest('.ctl'),k==='pool'?'Rivers DEX':ST_SOON_FEAT[k]);}});
+  $$('[data-ts]').forEach(i=>{const k=i.dataset.ts;if(ST_SOON_FEAT[k]||(k==='pool'&&!dReady())){i.checked=false;i.disabled=true;lvSoon(i.closest('.ctl'),k==='pool'?'Rivers DEX':ST_SOON_FEAT[k]);}});
   const fee=$('tsFee');if(fee){fee.disabled=true;lvSoon(fee.closest('.ctl'),'Transfer fees');}
-  const pt=$('tsPT');if(pt){const row=pt.closest('.r2');if(row)lvSoon(row,'Rivers DEX');}
+  const pt=$('tsPT');if(pt){const row=pt.closest('.r2');if(row&&!dReady())lvSoon(row,'Rivers DEX');}
+  if(dReady()){const pc=document.querySelector('[data-ts=pool]');const d=pc&&pc.closest('.ctl').querySelector('.d');if(d)d.textContent='Pair your token with test USDs on Rivers DEX so people can trade it right away';dWalBals();}
   const mi=document.querySelector('[data-ts=mint]');if(mi){const sync=()=>{mi.checked=TS.maxMode!=='fixed';mi.disabled=true;};sync();const d=mi.closest('.ctl').querySelector('.d');if(d)d.textContent='Set by the supply choice above';$$('[data-act=tsmax]').forEach(x=>x.addEventListener('click',()=>setTimeout(sync,0)));}
   const go=$('tsGo');if(go)go.textContent='Create token';tsRender();};})();
 async function stCreate(){if(ST.busy)return;const e=tsIssues();if(e.length)return toast(e[0],false);ST.busy=true;const s=TS.sym.trim().toUpperCase();const f=stFlags();
- const steps=['Prepare contract','Publish to Rivers','Register currency'];const show=(k,err)=>{const el=$('stSteps');if(el)el.innerHTML=steps.map((x,i)=>'<div class="li"><span class="chk '+(i<k?'ok':i===k&&err?'bad':'')+'">'+(i<k?'✓':i===k&&err?'!':i+1)+'</span><span><b style="font-size:.85rem">'+x+'</b>'+(i===k&&err?'<br><span class="muted" style="font-size:.74rem">'+esc(err)+'</span>':'')+'</span><span class="r">'+(i===k&&!err?'<span class="spin"></span>':'')+'</span></div>').join('');};
+ const withPool=!!(TS.pool&&dReady());const steps=['Prepare contract','Publish to Rivers','Register currency'].concat(withPool?['Open USDs pool']:[]);const show=(k,err)=>{const el=$('stSteps');if(el)el.innerHTML=steps.map((x,i)=>'<div class="li"><span class="chk '+(i<k?'ok':i===k&&err?'bad':'')+'">'+(i<k?'✓':i===k&&err?'!':i+1)+'</span><span><b style="font-size:.85rem">'+x+'</b>'+(i===k&&err?'<br><span class="muted" style="font-size:.74rem">'+esc(err)+'</span>':'')+'</span><span class="r">'+(i===k&&!err?'<span class="spin"></span>':'')+'</span></div>').join('');};
  await new Promise(z=>setTimeout(z,320));/* closeSheet from the confirm dialog hides the sheet after 260 ms */
  openSheet('Creating '+s,'<div class="list" id="stSteps"></div><div id="stDone"></div>','Token Studio');show(0);let k=0;
  try{await stMbt();let b=Uint8Array.from(atob(TS_TEMPLATE_B64),c=>c.charCodeAt(0));
@@ -61,7 +63,10 @@ async function stCreate(){if(ST.busy)return;const e=tsIssues();if(e.length)retur
   const ty=t.objectTypes||{};const pkg=Object.keys(ty).find(x=>ty[x]==='package');const ct=pkg+'::'+s.toLowerCase()+'::'+s;const cur=Object.keys(ty).find(x=>ty[x].includes('::coin_registry::Currency<'));
   k=2;show(2);await new Promise(z=>setTimeout(z,1200));const tx2=new Transaction();tx2.setSender(WAL.addr);tx2.moveCall({target:'0x2::coin_registry::finalize_registration',typeArguments:[ct],arguments:[tx2.object('0xc'),tx2.object(cur)]});
   const r2=await lvClient.signAndExecuteTransaction({transaction:tx2,signer:WAL.kp,include:{effects:true}});const t2=r2.Transaction||r2.FailedTransaction;if(r2.FailedTransaction||!t2.status||!t2.status.success)throw new Error('Registration failed. The token exists but its name is not registered yet.');
-  k=3;show(3);ST.tokens.push({coinType:ct,symbol:s,name:TS.name});$('stDone').innerHTML='<div class="walhero"><span class="b ok dot" style="font-size:.8rem;padding:6px 12px">'+esc(s)+' is live on Rivers</span><span class="muted mono" style="font-size:.72rem;word-break:break-all">'+esc(ct)+'</span></div><a class="btn pri wide" href="#explorer-asset-'+ct+'" data-act="closesh">Open token page</a><a class="btn wide" href="#explorer-tx-'+t.digest+'" data-act="closesh">View publish transaction</a>';
+  if(withPool){k=3;show(3);await new Promise(z=>setTimeout(z,1000));const tx3=new Transaction();tx3.setSender(WAL.addr);const U=ntype(DEX.cfg.coins.USDs);
+   const lp=tx3.moveCall({target:DEX.cfg.package+'::pool::create_pool',typeArguments:[ct,U],arguments:[tx3.object(DEX.cfg.registry),coinWithBalance({type:ct,balance:stUnits(TS.poolTok,TS.dec)}),coinWithBalance({type:U,balance:stUnits(TS.poolUsd,6)})]});tx3.transferObjects([lp],WAL.addr);
+   const r3=await lvClient.signAndExecuteTransaction({transaction:tx3,signer:WAL.kp,include:{effects:true}});const t3=r3.Transaction||r3.FailedTransaction;if(r3.FailedTransaction||!t3.status||!t3.status.success)throw new Error('The token is live, but the pool could not be opened. Add it later on the Pools page.');}
+  k=steps.length;show(k);ST.tokens.push({coinType:ct,symbol:s,name:TS.name});$('stDone').innerHTML='<div class="walhero"><span class="b ok dot" style="font-size:.8rem;padding:6px 12px">'+esc(s)+' is live on Rivers</span><span class="muted mono" style="font-size:.72rem;word-break:break-all">'+esc(ct)+'</span></div><a class="btn pri wide" href="#explorer-asset-'+ct+'" data-act="closesh">Open token page</a><a class="btn wide" href="#explorer-tx-'+t.digest+'" data-act="closesh">View publish transaction</a>';
   toast(s+' is live on Rivers.');setTimeout(walRefresh,1500);}
  catch(err){show(k,err.message||String(err));}ST.busy=false;}
 LACT.tsgo=function(){const e=tsIssues();if(e.length)return toast(e[0],false);const s=TS.sym.trim().toUpperCase();
@@ -70,7 +75,7 @@ LACT.tsgo=function(){const e=tsIssues();if(e.length)return toast(e[0],false);con
 /* ---------- Tokens list ---------- */
 async function stPoll(){if(!IDX.ok)return;try{ST.tokens=await idxGet('/tokens');ST.at=Date.now();ST.tokens.forEach(t=>{if(t.symbol&&!ST.meta[t.coinType])ST.meta[t.coinType]={symbol:t.symbol,name:t.name,decimals:t.decimals,description:t.description,regulated:!!t.regulated};});if(CUR&&CUR.sub==='tokens')EXX.tokens.update();}catch(e){}}
 setInterval(stPoll,20000);setTimeout(stPoll,2500);
-EXX.tokens.update=function(){const f=EXX.f||'All';const toks=ST.tokens.filter(t=>t.symbol);
+EXX.tokens.update=function(){const f=EXX.f||'All';const toks=ST.tokens.filter(t=>t.symbol&&!dIsDex(t.coinType));
   const st=$('tk1');if(st){st.textContent=fmt(1+toks.length);$('tk1s').textContent=toks.length?'RVRB and '+toks.length+' created':'Native token';}
   const t2=$('tk2');if(t2){if(IDX.ok){idxUnsoon(lvKpi('tk2'));t2.textContent=fmt(toks.length);$('tk2s').textContent='No code written';}else lvSoon(lvKpi('tk2'),'Token Studio');}
   ['tk3','tk4'].forEach((id,i)=>lvSoon(lvKpi(id),['Cross-chain assets','DEX liquidity'][i]));
@@ -86,7 +91,7 @@ EXX.tokens.update=function(){const f=EXX.f||'All';const toks=ST.tokens.filter(t=
 const STP={ct:null,info:null,ctl:null,admin:null,deny:null};
 assetPage=function(t){if(t==='RVRB'){location.hash='explorer-token';return '';}if(!/^0x[0-9a-f]+::\w+::\w+$/i.test(t))return lvSoonPage(esc(t),'Stablecoins and cross-chain assets.');
  const m=ST.meta[t]||{};const sym=m.symbol||t.split('::').pop();
- return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center;min-width:0"><a class="icobtn" href="#explorer-tokens" aria-label="Back">←</a>${stIco(sym,58)}<div style="min-width:0"><span class="eyebrow">Created with Token Studio</span><div style="font-size:1.25rem;font-weight:800" id="stN">${esc(m.name||sym)}</div><div class="mono muted" style="font-size:.74rem;word-break:break-all">${esc(t)}</div></div></div><div class="btns"><button class="btn xs" data-act="copy" data-v="${esc(t)}">Copy type</button><span id="stB"></span></div></div><p class="fg2" id="stD" style="margin-top:6px">${esc(m.description||'')}</p></section>
+ return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center;min-width:0"><a class="icobtn" href="#explorer-tokens" aria-label="Back">←</a>${stIco(sym,58)}<div style="min-width:0"><span class="eyebrow">${dIsDex(t)?'Testnet stablecoin · Rivers DEX':'Created with Token Studio'}</span><div style="font-size:1.25rem;font-weight:800" id="stN">${esc(m.name||sym)}</div><div class="mono muted" style="font-size:.74rem;word-break:break-all">${esc(t)}</div></div></div><div class="btns"><button class="btn xs" data-act="copy" data-v="${esc(t)}">Copy type</button><span id="stB"></span></div></div><p class="fg2" id="stD" style="margin-top:6px">${esc(m.description||'')}</p></section>
  <div class="g c4 rise">${kpi('sk1','Supply',IC.coins)}${kpi('sk2','Holders',IC.users)}${kpi('sk3','Transfers',IC.activity)}${kpi('sk4','Created',IC.cube)}</div>
  <div class="g c2 ais"><div class="g" style="gap:16px;align-content:start"><section class="card"><div class="ch"><h2><span class="ico">${IC.users}</span>Holders</h2><span class="sub" id="stHs"></span></div><div class="list" id="stH"><div class="empty">Loading…</div></div></section>
   <section class="card"><div class="ch"><h2><span class="ico">${IC.shield}</span>Token info</h2></div><div class="kv" id="stI"></div></section><section class="card" id="stM" hidden></section></div>
@@ -105,13 +110,13 @@ async function stTokLoad(ct){STP.ct=ct;const m=await stMeta(ct);if(CUR.param!==c
  const tot=supply!=null?stNum(supply,dec):0;
  $('stHs').textContent=hold.length?'Top '+hold.length:'';$('stH').innerHTML=hold.map((h,i)=>{const v=stNum(h.balance,dec);return '<div class="li"><span class="tag">#'+(i+1)+'</span><span>'+lvAddr(h.addr,6)+'<div class="bar" style="margin-top:5px"><i style="width:'+(tot?v/tot*100:0)+'%"></i></div></span><span class="r">'+fmt(v,Math.min(4,dec))+'<div class="muted" style="font-size:.7rem">'+(tot?pct(v/tot,2):'')+'</div></span></div>';}).join('')||'<div class="empty">'+(IDX.ok?'No holders yet':'Holder data needs the Rivers indexer')+'</div>';
  $('stT').innerHTML=txs.map(t=>'<div class="li click" data-act="tx" data-id="'+t.digest+'"><span class="ty '+(t.recipient?'transfer':'defi')+'">'+(t.recipient?'Transfer':String(t.amount).startsWith('-')?'Burn':'Mint')+'</span><span>'+lvAddr(t.sender,6)+(t.recipient?' → '+lvAddr(t.recipient,6):'')+'</span><span class="r">'+(t.amount&&t.amount!=='0'?stFmt(String(t.amount).replace('-',''),dec)+' '+esc(sym):'—')+'</span><span class="s">Block #'+fmt(t.cp)+' · '+ago(t.ts)+'</span></div>').join('')||'<div class="empty">No transfers yet</div>';
- let policy=m.supplyState===1?'Fixed supply':m.supplyState===2?'Burn only, no minting':'Mintable';STP.ctl=null;
+ let policy=dIsDex(ct)?'Minted by the testnet faucet':m.supplyState===1?'Fixed supply':m.supplyState===2?'Burn only, no minting':'Mintable';STP.ctl=null;
  if(info&&info.digest){try{const tr=(await LSv.getTransaction({digest:info.digest,readMask:{paths:['effects.changed_objects.object_id','effects.changed_objects.object_type']}})).response.transaction;
    const co=((tr.effects&&tr.effects.changedObjects)||[]).find(o=>(o.objectType||'').endsWith('::Controls'));
    if(co){const o=(await LSv.getObject({objectId:co.objectId,readMask:{paths:['json','object_id']}})).response.object;const fl=o.json&&o.json.kind&&o.json.kind.structValue?o.json.kind.structValue.fields:{};const g=k=>fl[k]&&fl[k].kind?(fl[k].kind.stringValue!=null?fl[k].kind.stringValue:fl[k].kind.boolValue):null;
      const mx=g('max_supply');const bn=g('burnable');STP.ctl={id:co.objectId,max:mx,burnable:bn===true||bn==='true'};policy='Mintable'+(mx&&mx!=='0'?', capped at '+stFmt(mx,dec):', no cap')+(STP.ctl.burnable?', burnable':'');}}catch(e){console.warn(e);}}
  const pkg=ct.split('::')[0];
- $('stI').innerHTML=[['Symbol',esc(sym)],['Decimals',dec],['Supply policy',policy],['Transfer controls',m.regulated?'Issuer can pause and freeze':'None'],['Creator',info?lvAddr(info.creator,6):'—'],['Package','<a class="mono alink" href="#explorer-address-'+pkg+'">'+short(pkg,6)+'</a>'],['Contract','Immutable']].map(x=>'<div><span>'+x[0]+'</span><span>'+x[1]+'</span></div>').join('');
+ $('stI').innerHTML=[['Symbol',esc(sym)],['Decimals',dec],['Supply policy',policy],['Transfer controls',m.regulated?'Issuer can pause and freeze':'None'],['Creator',info?lvAddr(info.creator,6):'—'],['Package','<a class="mono alink" href="#explorer-address-'+pkg+'">'+short(pkg,6)+'</a>'],['Contract',dIsDex(ct)?'Rivers DEX package':'Immutable']].map(x=>'<div><span>'+x[0]+'</span><span>'+x[1]+'</span></div>').join('');
  const bb=$('stB');if(bb)bb.innerHTML='<span class="b ok dot">Live</span>'+(m.regulated?' <span class="b gold">Regulated</span>':'');
  stManage(ct);}
 async function stManage(ct){const el=$('stM');if(!el)return;if(!WAL.kp){el.hidden=false;el.innerHTML='<div class="ch"><h2><span class="ico">'+IC.stake+'</span>Manage</h2></div><p class="muted" style="font-size:.8rem">Unlock the wallet that created this token to mint, pause or freeze. Holders can burn when burning is allowed.</p><button class="btn sm" data-act="wconnect">Unlock wallet</button>';return;}

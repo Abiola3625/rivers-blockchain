@@ -1,0 +1,10 @@
+[package]
+name = "RiversDex"
+version = "1.0.0"
+edition = "2024.beta"
+
+[dependencies]
+Sui = { local = "../../crates/sui-framework/packages/sui-framework" }
+
+[addresses]
+rivers_dex = "0x0"

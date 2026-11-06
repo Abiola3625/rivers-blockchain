@@ -9,12 +9,14 @@
 // RIVERS_INDEXER_DB (default ./rivers-indexer.db).
 
 import http from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 
 const RPC = process.env.RIVERS_RPC || 'http://127.0.0.1:9000';
 const PORT = Number(process.env.RIVERS_INDEXER_PORT || 9200);
 const DB_PATH = process.env.RIVERS_INDEXER_DB || './rivers-indexer.db';
+const DEX_CONFIG = process.env.RIVERS_DEX_CONFIG || './dex.json';
 const RVRB = '0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI';
 const SYS0 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 // Activity wallets use this gas budget; Scan uses it to label network activity.
@@ -49,6 +51,13 @@ CREATE TABLE IF NOT EXISTS tok_bal(coin_type TEXT, addr TEXT, bal INTEGER, PRIMA
 CREATE INDEX IF NOT EXISTS tok_bal_top ON tok_bal(coin_type, bal DESC);
 CREATE TABLE IF NOT EXISTS tok_tx(coin_type TEXT, digest TEXT, cp INTEGER, ts INTEGER, sender TEXT, recipient TEXT, amount INTEGER, PRIMARY KEY(coin_type, digest));
 CREATE INDEX IF NOT EXISTS tok_tx_cp ON tok_tx(coin_type, cp DESC);
+CREATE TABLE IF NOT EXISTS pool(id TEXT PRIMARY KEY, pkg TEXT, type_a TEXT, type_b TEXT, cp INTEGER, ts INTEGER, creator TEXT,
+  reserve_a INTEGER, reserve_b INTEGER);
+CREATE TABLE IF NOT EXISTS swap(digest TEXT, seq INTEGER, pool TEXT, cp INTEGER, ts INTEGER, a_to_b INTEGER, amount_in INTEGER,
+  amount_out INTEGER, reserve_a INTEGER, reserve_b INTEGER, trader TEXT, PRIMARY KEY(digest, seq));
+CREATE INDEX IF NOT EXISTS swap_pool ON swap(pool, cp DESC);
+CREATE TABLE IF NOT EXISTS liquidity(digest TEXT, seq INTEGER, pool TEXT, cp INTEGER, ts INTEGER, added INTEGER, amount_a INTEGER,
+  amount_b INTEGER, lp INTEGER, provider TEXT, PRIMARY KEY(digest, seq));
 CREATE TABLE IF NOT EXISTS epoch(epoch INTEGER PRIMARY KEY, start_ts INTEGER, first_cp INTEGER, total_stake INTEGER, rgp INTEGER);
 CREATE TABLE IF NOT EXISTS val_epoch(epoch INTEGER, addr TEXT, name TEXT, pool TEXT, stake INTEGER, rewards_pool INTEGER,
   pool_tokens INTEGER, commission INTEGER, PRIMARY KEY(epoch, addr));
@@ -90,7 +99,42 @@ function classify(tx) {
 
 const CP_MASK = { paths: ['sequence_number', 'summary.timestamp', 'transactions.digest', 'transactions.transaction.sender',
   'transactions.transaction.kind', 'transactions.transaction.gas_payment.budget', 'transactions.effects.status',
-  'transactions.effects.gas_used', 'transactions.balance_changes'] };
+  'transactions.effects.gas_used', 'transactions.balance_changes', 'transactions.events.events.event_type', 'transactions.events.events.json'] };
+
+// Converts a protobuf Value (event JSON) into a plain object.
+function plain(v) {
+  const k = v && v.kind;
+  if (!k) return null;
+  switch (k.oneofKind) {
+    case 'structValue': return Object.fromEntries(Object.entries(k.structValue.fields || {}).map(([n, x]) => [n, plain(x)]));
+    case 'listValue': return (k.listValue.values || []).map(plain);
+    case 'nullValue': return null;
+    default: return k[k.oneofKind];
+  }
+}
+// Type names in DEX events are bytes of a type name without the 0x prefix.
+const typeOf = (b64) => '0x' + Buffer.from(b64, 'base64').toString('utf8');
+const qPool = db.prepare('INSERT OR IGNORE INTO pool VALUES(?,?,?,?,?,?,?,?,?)');
+const qPoolRes = db.prepare('UPDATE pool SET reserve_a=?, reserve_b=? WHERE id=?');
+const qSwap = db.prepare('INSERT OR IGNORE INTO swap VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+const qLiq = db.prepare('INSERT OR IGNORE INTO liquidity VALUES(?,?,?,?,?,?,?,?,?,?)');
+
+function storeEvents(tx, seq, ts) {
+  const evs = (tx.events && tx.events.events) || [];
+  evs.forEach((e, i) => {
+    const t = e.eventType || '';
+    if (!/::pool::(PoolCreated|Swapped|LiquidityChanged)$/.test(t)) return;
+    const pkg = t.split('::')[0], j = plain(e.json) || {};
+    if (t.endsWith('::PoolCreated')) qPool.run(j.pool, pkg, typeOf(j.type_a), typeOf(j.type_b), seq, ts, j.creator, BigInt(j.amount_a), BigInt(j.amount_b));
+    else if (t.endsWith('::Swapped')) {
+      qSwap.run(tx.digest, i, j.pool, seq, ts, j.a_to_b ? 1 : 0, BigInt(j.amount_in), BigInt(j.amount_out), BigInt(j.reserve_a), BigInt(j.reserve_b), j.trader);
+      qPoolRes.run(BigInt(j.reserve_a), BigInt(j.reserve_b), j.pool);
+    } else {
+      qLiq.run(tx.digest, i, j.pool, seq, ts, j.added ? 1 : 0, BigInt(j.amount_a), BigInt(j.amount_b), BigInt(j.lp), j.provider);
+      qPoolRes.run(BigInt(j.reserve_a), BigInt(j.reserve_b), j.pool);
+    }
+  });
+}
 
 async function fetchCp(seq) {
   for (let i = 0; ; i++) {
@@ -140,6 +184,7 @@ function storeCheckpoint(cp) {
     let amount = 0n, recipient = null;
     for (const [a, v] of deltas) if (a !== sender && v > 0n) { amount += v; recipient = recipient || a; }
     volume += amount;
+    storeEvents(tx, seq, ts);
     const ok = tx.effects && tx.effects.status && tx.effects.status.success === false ? 0 : 1;
     qTx.run(tx.digest, seq, ts, sender, kind, label, ok, fee, amount, recipient, activity);
     for (const [a, v] of deltas) {
@@ -310,7 +355,25 @@ function token(ct, q, sub) {
   return db.prepare(`SELECT ${TOK_COLS} FROM token t WHERE t.coin_type=?`).get(ct) || { error: 'Unknown token' };
 }
 
+function dexConfig() {
+  try { return existsSync(DEX_CONFIG) ? JSON.parse(readFileSync(DEX_CONFIG, 'utf8')) : null; } catch (e) { return null; }
+}
+// Amounts are strings in base units because reserves can exceed 2^53.
+const POOL_COLS = `p.id, p.type_a typeA, p.type_b typeB, p.cp, p.ts, p.creator, CAST(p.reserve_a AS TEXT) reserveA, CAST(p.reserve_b AS TEXT) reserveB,
+  (SELECT COUNT(*) FROM swap s WHERE s.pool=p.id AND s.ts>=?) swaps24h,
+  (SELECT CAST(COALESCE(SUM(CASE WHEN a_to_b=1 THEN amount_in ELSE amount_out END),0) AS TEXT) FROM swap s WHERE s.pool=p.id AND s.ts>=?) volumeA24h,
+  (SELECT CAST(COALESCE(SUM(CASE WHEN a_to_b=0 THEN amount_in ELSE amount_out END),0) AS TEXT) FROM swap s WHERE s.pool=p.id AND s.ts>=?) volumeB24h,
+  (SELECT COUNT(*) FROM swap s WHERE s.pool=p.id) swaps`;
+function pools() {
+  const c = dexConfig();
+  const since = Date.now() - DAY;
+  const rows = db.prepare(`SELECT ${POOL_COLS}, p.pkg FROM pool p ORDER BY p.cp`).all(since, since, since);
+  return c && c.package ? rows.filter((r) => r.pkg === c.package) : rows;
+}
+
 const routes = {
+  '/config': () => ({ dex: dexConfig() }),
+  '/dex/pools': () => pools(),
   '/tokens': () => db.prepare(`SELECT ${TOK_COLS} FROM token t ORDER BY holders DESC, t.first_cp`).all(),
   '/account-tokens': (q) => {
     const a = norm(q.get('addr'));
@@ -376,9 +439,12 @@ http.createServer((req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   let out, code = 200;
   try {
+    const pm = u.pathname.match(/^\/dex\/pool\/(0x[0-9a-f]+)\/swaps$/);
     const tm = u.pathname.match(/^\/token\/([^/]+)(?:\/(holders|txs))?$/);
     const m = u.pathname.match(/^\/account\/([^/]+)(?:\/(txs|daily))?$/);
-    if (tm) out = token(decodeURIComponent(tm[1]), u.searchParams, tm[2]);
+    if (pm) out = db.prepare(`SELECT digest, cp, ts, a_to_b aToB, CAST(amount_in AS TEXT) amountIn, CAST(amount_out AS TEXT) amountOut,
+      CAST(reserve_a AS TEXT) reserveA, CAST(reserve_b AS TEXT) reserveB, trader FROM swap WHERE pool=? ORDER BY cp DESC, seq DESC LIMIT ?`).all(pm[1], Math.min(500, Number(u.searchParams.get('limit') || 50)));
+    else if (tm) out = token(decodeURIComponent(tm[1]), u.searchParams, tm[2]);
     else if (m) { const a = norm(m[1]); out = a ? account(a, u.searchParams, m[2]) : (code = 400, { error: 'Invalid address' }); }
     else if (routes[u.pathname]) out = routes[u.pathname](u.searchParams);
     else { code = 404; out = { error: 'Not found' }; }
