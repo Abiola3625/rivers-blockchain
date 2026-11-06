@@ -33,6 +33,10 @@ pub const RIVERS_GENESIS_SUPPLY_MIST: u64 = 10_000_000 * MIST_PER_SUI;
 /// RVRB paid out as staking rewards over 50 years (10 eras of 5 years, halving each era).
 pub const RIVERS_MINED_SUPPLY_MIST: u64 = 11_000_000 * MIST_PER_SUI;
 
+/// RVRB allocated at genesis to the Rivers foundation and core developers to grow the ecosystem.
+/// It is part of the 10M genesis supply.
+pub const RIVERS_FOUNDATION_MIST: u64 = 2_000_000 * MIST_PER_SUI;
+
 // Note: cannot use checked arithmetic here since `const unwrap` is still unstable.
 /// Total supply denominated in Mist
 pub const TOTAL_SUPPLY_MIST: u64 = TOTAL_SUPPLY_SUI * MIST_PER_SUI;

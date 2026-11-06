@@ -654,6 +654,17 @@ impl TokenDistributionScheduleBuilder {
         self.allocations.first().map(|a| a.recipient_address)
     }
 
+    /// The recipient of the nth allocation that went to a distinct address.
+    pub fn nth_distinct_recipient(&self, n: usize) -> Option<SuiAddress> {
+        let mut seen: Vec<SuiAddress> = Vec::new();
+        for a in &self.allocations {
+            if !seen.contains(&a.recipient_address) {
+                seen.push(a.recipient_address);
+            }
+        }
+        seen.get(n).copied()
+    }
+
     pub fn add_allocation(&mut self, allocation: TokenAllocation) {
         self.pool = self.pool.checked_sub(allocation.amount_mist).unwrap();
         self.allocations.push(allocation);

@@ -541,8 +541,20 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 builder.add_allocation(gas_coin);
                 builder.add_allocation(stake);
             }
+            // The second local account stands in for the foundation and developer wallet.
+            // On a public network this must be a multisig address held on hardware keys.
+            let foundation = builder
+                .nth_distinct_recipient(1)
+                .or_else(|| builder.first_recipient())
+                .expect("local network needs at least one account");
+            builder.add_allocation(TokenAllocation {
+                recipient_address: foundation,
+                amount_mist: sui_types::gas_coin::RIVERS_FOUNDATION_MIST,
+                staked_with_validator: None,
+            });
             // Rivers keeps exactly 11M RVRB for staking rewards. Genesis RVRB that is not
-            // assigned to accounts or validators goes to the first account as a genesis reserve.
+            // assigned to accounts, validators or the foundation goes to the first account as a
+            // genesis reserve.
             let reserve = builder
                 .remaining_mist()
                 .checked_sub(sui_types::gas_coin::RIVERS_MINED_SUPPLY_MIST)
