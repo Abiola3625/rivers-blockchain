@@ -18,3 +18,18 @@
 .soonrows{min-height:200px}.soonrows table{min-width:0}
 .ntag{display:inline-block;font:700 .62rem var(--f-body);color:var(--fg2);background:var(--raise);border:1px solid var(--hair2);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;white-space:nowrap}
 .flowlinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+/* Rivers web wallet */
+#walBody{display:grid;gap:12px}
+.walhero{display:grid;justify-items:center;gap:8px;text-align:center;padding:10px 0 6px}
+.walhero b{font-size:1.02rem}
+.walbal{display:grid;justify-items:center;gap:4px;padding:14px;border:1px solid var(--hair2);border-radius:16px;background:var(--sunk)}
+.walbal .big{font-size:1.9rem;font-weight:800}
+.walbtns{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.walbtns .btn{display:grid;justify-items:center;gap:4px;padding:10px 4px;font-size:.74rem}
+.walbtns .btn svg{width:18px;height:18px}
+.words{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.words span{border:1px solid var(--hair2);border-radius:10px;padding:7px 8px;font-family:var(--f-mono);font-size:.8rem;background:var(--sunk);display:flex;gap:6px;min-width:0}
+.words i{color:var(--muted);font-style:normal;font-size:.7rem}
+.chkrow{display:flex;gap:8px;align-items:center;font-size:.82rem}
+#walBody .btn.wide{width:100%;justify-content:center}
+#walBody .btn[disabled]{opacity:.6;pointer-events:none}

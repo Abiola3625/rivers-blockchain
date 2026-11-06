@@ -155,7 +155,7 @@ function blockPage(n){const c=S.cps.find(x=>x.n===n);if(!c){if(LV.head!=null&&n>
  <section class="card"><div class="ch"><h2><span class="ico">${IC.list}</span>Transactions in this block</h2></div><div class="list">${list.map(txRow).join('')||'<div class="empty">No transactions</div>'}</div></section>`;}
 function valPage(v){const up=v.signed+v.missed?v.signed/(v.signed+v.missed)*100:100;
   return `<section class="card hud"><div class="ch"><div style="display:flex;gap:14px;align-items:center"><a class="icobtn" href="#explorer-validators" aria-label="Back">←</a>${identicon(v.addr,58)}<div><div class="mono" style="font-size:1.1rem">${esc(v.name)}</div><div class="muted" style="font-size:.82rem">${lvAddr(v.addr,8)} · Active since epoch ${v.joined}</div></div></div>
-  <div class="btns"><span class="b ok dot">Active</span><button class="btn pri sm" data-act="lvsoon" data-v="Staking">Stake with this validator</button></div></div></section>
+  <div class="btns"><span class="b ok dot">Active</span><button class="btn pri sm" data-act="stakeon" data-id="${v.id}">Stake with this validator</button></div></div></section>
  <div class="g c6 rise">${stat('Voting power',(v.power*100).toFixed(2)+'%','Committee share')}<div class="kpi"><span class="cap">Total stake</span><span class="v" id="vpS">${fmt(v.stake,2)} RVRB</span><span class="s">Next epoch ${compact(v.next)}</span></div>${stat('Signature rate',up.toFixed(1)+'%','Observed blocks')}${stat('Commission',fmt(v.comm,2)+'%','Of rewards')}${stat('Signed',fmt(v.signed),'Blocks')}${stat('Gas price vote',fmt(v.gas),'Drops')}</div>
  <div class="g c3 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.coins}</span>Stake</h2></div><div class="donut">${donut([['This validator',v.stake,'var(--river)'],['Other validators',Math.max(0,stakedTotal()-v.stake),'var(--hair3)']],compact(v.stake),'RVRB')}</div></section>
   <section class="card soon" data-soon="Reward history"><div class="ch"><h2><span class="ico">${IC.flame}</span>Rewards per day</h2><span class="sub">Last 14 days, RVRB</span></div>${bars(Array.from({length:14},(_,i)=>1+(i%3)),Array.from({length:14},(_,i)=>i%3===0?'D'+(i+1):''),C.acc,120)}</section>
@@ -307,8 +307,6 @@ const LACT={
  lvtt(el){LVH.tab=el.dataset.v;$$('[data-act=lvtt]').forEach(b=>b.classList.toggle('on',b===el));const b=$('thBody');if(b)b._h='';lvTokenUpdate();},
  lvaddr(el){location.hash='explorer-address-'+el.dataset.a;},
  lvsoon(el){toast((el.dataset.v||'This feature')+' is coming soon.');},
- wconnect(){toast('Wallet connection is coming soon.');},
- stakeon(){toast('Staking is coming soon.');},
  lvfa(el){lvStore.set('rvScanLastAddr',el.dataset.a);},
  tx(el){location.hash='explorer-tx-'+el.dataset.id;},cp(el){location.hash='explorer-block-'+el.dataset.n;},val(el){location.hash='explorer-validator-'+el.dataset.id;},
  async lvfaucet(){const a=lvNorm($('fA').value.trim());if(!a)return toast('Enter a valid wallet address.',false);lvStore.set('rvScanLastAddr',a);const b=$('fGo');b.disabled=true;b.textContent='Sending…';
