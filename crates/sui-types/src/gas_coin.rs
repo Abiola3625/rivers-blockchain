@@ -37,6 +37,10 @@ pub const RIVERS_MINED_SUPPLY_MIST: u64 = 11_000_000 * MIST_PER_SUI;
 /// It is part of the 10M genesis supply.
 pub const RIVERS_FOUNDATION_MIST: u64 = 2_000_000 * MIST_PER_SUI;
 
+/// The foundation allocation is split across this many wallets so that one compromised key
+/// cannot reach the whole allocation.
+pub const RIVERS_FOUNDATION_WALLETS: u64 = 5;
+
 // Note: cannot use checked arithmetic here since `const unwrap` is still unstable.
 /// Total supply denominated in Mist
 pub const TOTAL_SUPPLY_MIST: u64 = TOTAL_SUPPLY_SUI * MIST_PER_SUI;

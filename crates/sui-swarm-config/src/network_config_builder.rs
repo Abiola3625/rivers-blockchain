@@ -516,7 +516,17 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
 
-        let (account_keys, allocations) = genesis_config.generate_accounts(&mut rng).unwrap();
+        let (mut account_keys, allocations) = genesis_config.generate_accounts(&mut rng).unwrap();
+
+        // Rivers foundation wallets get their own keys, which are saved with the other
+        // account keys so the local keystore can sign for them.
+        let foundation_wallets: Vec<SuiAddress> = (0..sui_types::gas_coin::RIVERS_FOUNDATION_WALLETS)
+            .map(|_| {
+                let (address, key): (SuiAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+                account_keys.push(key);
+                address
+            })
+            .collect();
 
         let token_distribution_schedule = {
             let mut builder = TokenDistributionScheduleBuilder::new();
@@ -541,17 +551,17 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 builder.add_allocation(gas_coin);
                 builder.add_allocation(stake);
             }
-            // The second local account stands in for the foundation and developer wallet.
-            // On a public network this must be a multisig address held on hardware keys.
-            let foundation = builder
-                .nth_distinct_recipient(1)
-                .or_else(|| builder.first_recipient())
-                .expect("local network needs at least one account");
-            builder.add_allocation(TokenAllocation {
-                recipient_address: foundation,
-                amount_mist: sui_types::gas_coin::RIVERS_FOUNDATION_MIST,
-                staked_with_validator: None,
-            });
+            // On a public network each foundation wallet must be a multisig address held on
+            // hardware keys.
+            let per_wallet = sui_types::gas_coin::RIVERS_FOUNDATION_MIST
+                / sui_types::gas_coin::RIVERS_FOUNDATION_WALLETS;
+            for wallet in &foundation_wallets {
+                builder.add_allocation(TokenAllocation {
+                    recipient_address: *wallet,
+                    amount_mist: per_wallet,
+                    staked_with_validator: None,
+                });
+            }
             // Rivers keeps exactly 11M RVRB for staking rewards. Genesis RVRB that is not
             // assigned to accounts, validators or the foundation goes to the first account as a
             // genesis reserve.
