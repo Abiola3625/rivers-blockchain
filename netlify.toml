@@ -1,0 +1,9 @@
+# Netlify builds Rivers Scan from this repository: Add new project → Import from GitHub →
+# Abiola3625/rivers-blockchain. These settings are picked up automatically.
+[build]
+  base = "apps/scan"
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
