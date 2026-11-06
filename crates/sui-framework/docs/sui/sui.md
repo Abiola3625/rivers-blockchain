@@ -2,8 +2,9 @@
 title: Module `sui::sui`
 ---
 
-Coin<SUI> is the token used to pay for gas in Sui.
-It has 9 decimals, and the smallest unit (10^-9) is called "mist".
+Coin<SUI> is RVRB, the native token of the Rivers blockchain. It pays for gas and secures the network through staking.
+The type keeps the name SUI so that Sui tooling and the Move framework stay compatible.
+It has 9 decimals, and the smallest unit (10^-9) is called a "drop" in Rivers interfaces ("mist" in code).
 
 
 -  [Struct `SUI`](#sui_sui_SUI)
@@ -109,20 +110,21 @@ The amount of Mist per Sui token based on the fact that mist is
 
 <a name="sui_sui_TOTAL_SUPPLY_SUI"></a>
 
-The total supply of Sui denominated in whole Sui tokens (10 Billion)
+The maximum supply of RVRB in whole tokens (21 million).
+10 million exist at genesis and 11 million are paid out as staking rewards over 50 years.
 
 
-<pre><code><b>const</b> <a href="../sui/sui.md#sui_sui_TOTAL_SUPPLY_SUI">TOTAL_SUPPLY_SUI</a>: u64 = 10000000000;
+<pre><code><b>const</b> <a href="../sui/sui.md#sui_sui_TOTAL_SUPPLY_SUI">TOTAL_SUPPLY_SUI</a>: u64 = 21000000;
 </code></pre>
 
 
 
 <a name="sui_sui_TOTAL_SUPPLY_MIST"></a>
 
-The total supply of Sui denominated in Mist (10 Billion * 10^9)
+The maximum supply of RVRB denominated in Mist (21 million * 10^9)
 
 
-<pre><code><b>const</b> <a href="../sui/sui.md#sui_sui_TOTAL_SUPPLY_MIST">TOTAL_SUPPLY_MIST</a>: u64 = 10000000000000000000;
+<pre><code><b>const</b> <a href="../sui/sui.md#sui_sui_TOTAL_SUPPLY_MIST">TOTAL_SUPPLY_MIST</a>: u64 = 21000000000000000;
 </code></pre>
 
 
@@ -150,10 +152,9 @@ This should be called only once during genesis creation.
     <b>let</b> (treasury, metadata) = <a href="../sui/coin.md#sui_coin_create_currency">coin::create_currency</a>(
         <a href="../sui/sui.md#sui_sui_SUI">SUI</a> {},
         9,
-        b"<a href="../sui/sui.md#sui_sui_SUI">SUI</a>",
-        b"Sui",
-        // TODO: add appropriate description and logo <a href="../sui/url.md#sui_url">url</a>
-        b"",
+        b"RVRB",
+        b"Rivers",
+        b"Native <a href="../sui/token.md#sui_token">token</a> of the Rivers blockchain",
         option::none(),
         ctx,
     );
