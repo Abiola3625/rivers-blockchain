@@ -24280,13 +24280,27 @@ async function exec(tx, what) {
   throw new Error(what + " failed");
 }
 async function fund(rvrb) {
-  while (await balance(RVRB) / 1e9 < rvrb) {
-    const r = await fetch(FAUCET + "/v2/gas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ FixedAmountRequest: { recipient: me } }) });
-    if (!r.ok) {
-      log("faucet", r.status);
+  for (; ; ) {
+    let have = 0;
+    try {
+      have = await balance(RVRB) / 1e9;
+    } catch (e) {
+      log("balance", e.message);
+      await sleep(3e3);
+      continue;
+    }
+    if (have >= rvrb) break;
+    try {
+      const r = await fetch(FAUCET + "/v2/gas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ FixedAmountRequest: { recipient: me } }), signal: AbortSignal.timeout(3e4) });
+      if (!r.ok) {
+        log("faucet", r.status);
+        await sleep(5e3);
+      }
+    } catch (e) {
+      log("faucet", e.cause ? e.cause.code || e.cause.message : e.message);
       await sleep(5e3);
     }
-    await sleep(400);
+    await sleep(1e3);
   }
 }
 async function main() {

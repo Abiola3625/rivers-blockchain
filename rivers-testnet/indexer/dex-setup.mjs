@@ -58,10 +58,19 @@ async function exec(tx, what) {
 }
 
 async function fund(rvrb) {
-  while ((await balance(RVRB)) / 1e9 < rvrb) {
-    const r = await fetch(FAUCET + '/v2/gas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ FixedAmountRequest: { recipient: me } }) });
-    if (!r.ok) { log('faucet', r.status); await sleep(5000); }
-    await sleep(400);
+  // The faucet can drop connections when the activity wallets also use it, so every error is retried.
+  for (;;) {
+    let have = 0;
+    try { have = (await balance(RVRB)) / 1e9; } catch (e) { log('balance', e.message); await sleep(3000); continue; }
+    if (have >= rvrb) break;
+    try {
+      const r = await fetch(FAUCET + '/v2/gas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ FixedAmountRequest: { recipient: me } }), signal: AbortSignal.timeout(30000) });
+      if (!r.ok) { log('faucet', r.status); await sleep(5000); }
+    } catch (e) {
+      log('faucet', e.cause ? e.cause.code || e.cause.message : e.message);
+      await sleep(5000);
+    }
+    await sleep(1000);
   }
 }
 

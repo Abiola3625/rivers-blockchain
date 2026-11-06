@@ -142,9 +142,13 @@ USDS_PRICE_NGNS=1500
 dex_setup() {
   [ -f "$DATA/dex.json" ] && grep -q '"ready": true' "$DATA/dex.json" && return 0
   mkdir -p "$DATA/dex"
-  RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \
-    RIVERS_PRICE_RVRB_USDS="$RVRB_PRICE_USDS" RIVERS_PRICE_USDS_NGNS="$USDS_PRICE_NGNS" \
-    "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-dex-setup.mjs" >>"$DATA/dex.log" 2>&1
+  for _ in 1 2 3 4 5; do
+    RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \
+      RIVERS_PRICE_RVRB_USDS="$RVRB_PRICE_USDS" RIVERS_PRICE_USDS_NGNS="$USDS_PRICE_NGNS" \
+      "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-dex-setup.mjs" >>"$DATA/dex.log" 2>&1 && return 0
+    sleep 30
+  done
+  return 1
 }
 
 start() {

@@ -320,7 +320,12 @@ async function lvBoot(){Object.assign(ACTS,LACT);EX.txView='live';
  V.length=0;S.cps=[];S.txs=[];S.pays=[];S.arcs=[];S.xc=[];S.alerts=[];S.mix={transfer:0,defi:0,bank:0,private:0,system:0};S.mixHist=[];S.finHist=new Array(12).fill(0);S.hist={tps:[],fin:[],t:[]};
  S.tps=0;S.fin=0;S.p95=0;S.peak=0;S.halted=false;S.load=0;S.connected=false;S.W.mine=[];S.light=0;S.accounts=0;S.totalTx=0;S.txToday=0;S.feesToday=0;S.cp=0;S.reserve=MINED;S.emitted=0;
  $('root').innerHTML='<div class="lvload">'+logoSvg(64)+'<b>Rivers Scan</b><span>Connecting…</span></div>';
- await lvPollSystem();await lvPoll();await lvGenesisHolders();lvPollWallets().then(()=>{if(LV.ready)updateView();});
+ // Over a codespace tunnel the first requests can take a while, so the loading screen says what is happening.
+ const msg=t=>{const e=document.querySelector('.lvload span');if(e)e.innerHTML=t;};
+ const slow=setTimeout(()=>msg('Still connecting to the Rivers testnet. The testnet server may be starting up.'),12000);
+ await lvPollSystem();await lvPoll();
+ for(let i=1;!LV.online||!S.cps.length;i++){msg('The Rivers testnet is not reachable right now. Trying again'+(i>1?' ('+i+')':'')+'…<br><span style="font-size:.78rem;opacity:.75">'+esc(LV_RPC.replace(/^https?:\/\//,''))+'</span>');await new Promise(r=>setTimeout(r,5000));await lvPollSystem();await lvPoll();}
+ clearTimeout(slow);lvGenesisHolders();lvPollWallets().then(()=>{if(LV.ready)updateView();});
  LV.ready=true;route();
  setInterval(lvPoll,1500);setInterval(lvPollSystem,15000);setInterval(lvPollWallets,30000);
  new MutationObserver(()=>lvRelabel($('page'))).observe($('root'),{childList:true,subtree:true});lvRelabel();
