@@ -15,6 +15,7 @@ This file records every change Rivers makes on top of Sui, so that upstream fixe
 | Local network | `crates/sui-swarm-config/src/*.rs` | Every genesis wallet gets its own key. Validator stakes (150,000 RVRB each) come from the validator bootstrap wallet; test gas coins (1,000 RVRB each) come from the community wallets |
 | Public genesis wallets | `crates/sui-swarm-config/src/network_config_builder.rs` | `RIVERS_GENESIS_ADDRESSES=<file>` reads the 14 genesis wallet addresses from a file, so the owners keep their private keys on their own devices |
 | Local faucet | `crates/sui/src/sui_commands.rs` | Sends 5 coins of 10 RVRB per request, so one 1,000 RVRB gas coin can serve many requests |
+| Investor vesting | `rivers-packages/vesting` | Move package `rivers_vesting::vesting`: lock RVRB or any token for an investor, with an unlock at start, a cliff and linear unlocking; claim, revoke, batch issue and change of wallet |
 | Compiled framework | `crates/sui-framework/packages_compiled/` | Regenerated with `UPDATE=1 cargo test -p sui-framework --test build-system-packages` |
 
 The Move type is still `0x2::sui::SUI`. Renaming the type would touch thousands of files and break
@@ -92,3 +93,29 @@ In a second terminal:
 | Owner-held keys | Genesis from an address file works; the owner of foundation-1 signed a 1,000 RVRB transfer with a key that never touched the network setup |
 | Transfers | Wallet-to-wallet RVRB transfers succeed; a simple transfer costs about 0.002 RVRB |
 | Faucet | Each request sends 50 RVRB (5 coins of 10 RVRB) |
+
+## Investor vesting
+
+`rivers-packages/vesting/sources/vesting.move` locks coins in a shared `Vesting` object per investor.
+
+| Function | Who calls it | What it does |
+|---|---|---|
+| `issue` | Fund wallet owner | Creates one schedule and gives the caller an `IssuerCap` |
+| `issue_many` | Fund wallet owner | Creates one schedule per investor with the same terms, in one transaction |
+| `claim_to_sender` | Investor | Sends every unlocked token to the investor |
+| `revoke_to_sender` | `IssuerCap` holder | Stops a revocable schedule; locked tokens return, unlocked tokens stay with the investor |
+| `change_beneficiary` | Investor | Moves the schedule to a new wallet |
+
+Unlocking: `immediate_bps` of the total unlocks at the start, nothing more unlocks before the cliff,
+and the rest unlocks linearly from the start to `start + duration`.
+
+```bash
+cd rivers-packages/vesting
+../../target/debug/sui move test -e testnet          # 8 unit tests
+../../target/debug/sui client test-publish -e testnet --gas-budget 500000000
+```
+
+Local network test: the foundation-1 wallet issued 10,000 RVRB each to two investors (10% at start,
+2-minute cliff, 10-minute duration). Investor A claimed 1,000 RVRB at once, was refused a second claim
+before the cliff, then claimed 2,458.485 RVRB after it. Revoking investor B returned 6,505.11 RVRB and
+kept 3,494.89 RVRB for investor B.
