@@ -1,0 +1,17 @@
+{
+  "name": "rivers-indexer",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Rivers indexer: accounts, activity history and validator rewards for Rivers Scan",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild indexer.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-indexer.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "start": "node dist/rivers-indexer.mjs"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.39.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

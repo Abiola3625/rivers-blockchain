@@ -4,10 +4,11 @@
   "hostRequirements": { "cpus": 2, "memory": "8gb", "storage": "32gb" },
   "postCreateCommand": "bash rivers-testnet/codespace.sh install",
   "postStartCommand": "bash rivers-testnet/codespace.sh start",
-  "forwardPorts": [9000, 9123],
+  "forwardPorts": [9000, 9123, 9200],
   "portsAttributes": {
     "9000": { "label": "Rivers RPC", "onAutoForward": "silent" },
-    "9123": { "label": "Rivers faucet", "onAutoForward": "silent" }
+    "9123": { "label": "Rivers faucet", "onAutoForward": "silent" },
+    "9200": { "label": "Rivers indexer", "onAutoForward": "silent" }
   },
   "customizations": {
     "codespaces": { "openFiles": ["rivers-testnet/CODESPACE.md"] }

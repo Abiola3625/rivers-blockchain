@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const design = ['core.js', 'xchain.js', 'explorer.js', 'wallet.js', 'inst.js', 'console.js', 'views2.js', 'polish.js'];
 let js = design.map((f) => read('design/' + f)).join('\n');
-js += '\n' + read('src/scanshell.js') + '\n' + read('src/scanlive.js') + '\n' + read('src/scanwallet.js') + '\nboot();\n';
+js += '\n' + read('src/scanshell.js') + '\n' + read('src/scanlive.js') + '\n' + read('src/scanwallet.js') + '\n' + read('src/scanindex.js') + '\nboot();\n';
 js = js
   .replace('if(window.spawnParticle&&!reduce)', "if(typeof spawnParticle==='function'&&!reduce)")
   .replace('if(window.updateView)updateView();', "if(typeof updateView==='function')updateView();");

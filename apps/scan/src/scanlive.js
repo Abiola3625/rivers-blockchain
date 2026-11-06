@@ -158,7 +158,7 @@ function valPage(v){const up=v.signed+v.missed?v.signed/(v.signed+v.missed)*100:
   <div class="btns"><span class="b ok dot">Active</span><button class="btn pri sm" data-act="stakeon" data-id="${v.id}">Stake with this validator</button></div></div></section>
  <div class="g c6 rise">${stat('Voting power',(v.power*100).toFixed(2)+'%','Committee share')}<div class="kpi"><span class="cap">Total stake</span><span class="v" id="vpS">${fmt(v.stake,2)} RVRB</span><span class="s">Next epoch ${compact(v.next)}</span></div>${stat('Signature rate',up.toFixed(1)+'%','Observed blocks')}${stat('Commission',fmt(v.comm,2)+'%','Of rewards')}${stat('Signed',fmt(v.signed),'Blocks')}${stat('Gas price vote',fmt(v.gas),'Drops')}</div>
  <div class="g c3 ais"><section class="card"><div class="ch"><h2><span class="ico">${IC.coins}</span>Stake</h2></div><div class="donut">${donut([['This validator',v.stake,'var(--river)'],['Other validators',Math.max(0,stakedTotal()-v.stake),'var(--hair3)']],compact(v.stake),'RVRB')}</div></section>
-  <section class="card soon" data-soon="Reward history"><div class="ch"><h2><span class="ico">${IC.flame}</span>Rewards per day</h2><span class="sub">Last 14 days, RVRB</span></div>${bars(Array.from({length:14},(_,i)=>1+(i%3)),Array.from({length:14},(_,i)=>i%3===0?'D'+(i+1):''),C.acc,120)}</section>
+  ${idxRewardCard(v)}
   <section class="card"><div class="ch"><h2><span class="ico">${IC.activity}</span>Signatures</h2><span class="sub">Last ${v.bits.length} blocks</span></div>${heat((v.bits.length?v.bits:[1]).slice(-60),15,x=>x<1?'var(--bad)':greenRamp(1))}</section></div>`;}
 function assetPage(t){if(t!=='RVRB')return lvSoonPage(esc(t),'Stablecoins, cross-chain assets and Token Studio tokens.');location.hash='explorer-token';return '';}
 
@@ -210,7 +210,7 @@ function lvTokenBlock(){return `<section class="card hud" id="tokHold"><div clas
   <div id="thBody"><div class="empty">Loading…</div></div></section>`;}
 function lvTokenUpdate(){const body=$('thBody');if(!body)return;const hs=lvHolders();const supply=SUPPLY-S.reserve;const tot=hs.reduce((a,h)=>a+h.b,0);
   const top=n=>hs.slice(0,n).reduce((a,h)=>a+h.b,0)/Math.max(1,supply);
-  set2('th1',fmt(hs.filter(h=>!h.pool).length));set2('th1s','Addresses holding RVRB');set2('th2',pct(top(10),2));set2('th2s','Of supply in existence');set2('th3',pct(top(100),2));set2('th3s','Of supply in existence');
+  set2('th1',fmt(LVH.total||hs.filter(h=>!h.pool).length));set2('th1s','Addresses holding RVRB');set2('th2',pct(top(10),2));set2('th2s','Of supply in existence');set2('th3',pct(top(100),2));set2('th3s','Of supply in existence');
   const L=hs[0];set2('th4',L?pct(L.b/supply,2):'—');set2('th4s',L?(L.pool?'Validator staking pools':(lvName(L.a)||short(L.a,6))):'');
   set2('thS',LVH.at?'Updated '+ago(LVH.at)+' · tracked balances cover '+pct(Math.min(1,tot/Math.max(1,supply)),2)+' of supply':'Loading…');
   let h='';const nm=a=>a==='staking'?'<b>Validator staking pools</b>':lvAddr(a,8);

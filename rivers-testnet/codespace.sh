@@ -120,6 +120,21 @@ activity_loop() {
   done
 }
 
+# The indexer stores accounts, activity history and validator rewards for Rivers Scan. It needs
+# Node.js 22.13 or later for the built-in SQLite module, so a copy of Node is kept in $DATA/node.
+NODE_VER=v22.14.0
+NODE="$DATA/node/bin/node"
+indexer_start() {
+  if [ ! -x "$NODE" ]; then
+    local arch; arch=$(uname -m); arch=${arch/x86_64/x64}; arch=${arch/aarch64/arm64}
+    mkdir -p "$DATA/node"
+    curl -fsSL "https://nodejs.org/dist/$NODE_VER/node-$NODE_VER-linux-$arch.tar.xz" | tar -xJ -C "$DATA/node" --strip-components=1
+  fi
+  pkill -f "rivers-indexer.mjs" >/dev/null 2>&1 || true
+  RIVERS_INDEXER_DB="$DATA/indexer.db" NODE_NO_WARNINGS=1 \
+    nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-indexer.mjs" >>"$DATA/indexer.log" 2>&1 &
+}
+
 start() {
   git pull --ff-only >/dev/null 2>&1 || true
   [ -x "$BIN" ] || install
@@ -127,7 +142,6 @@ start() {
     RUST_LOG=warn nohup "$BIN" start --network.config "$NET" --with-faucet=0.0.0.0:9123 >>"$LOG" 2>&1 &
   fi
   for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:9000 && break; sleep 2; done
-  # Make the two ports reachable from the internet. This can also be done in the Ports tab.
   if ! pgrep -f "codespace.sh activity_loop" >/dev/null; then
     if activity_setup >>"$DATA/activity.log" 2>&1; then
       nohup bash "$0" activity_loop >>"$DATA/activity.log" 2>&1 &
@@ -135,12 +149,15 @@ start() {
       echo "Testnet activity did not start; see $DATA/activity.log" >&2
     fi
   fi
-  gh codespace ports visibility 9000:public 9123:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
+  indexer_start || echo "Indexer did not start; see $DATA/indexer.log" >&2
+  # Make the ports reachable from the internet. This can also be done in the Ports tab.
+  gh codespace ports visibility 9000:public 9123:public 9200:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
   base="${CODESPACE_NAME}-PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
   {
     echo "Rivers testnet is running ($(date -u))."
     echo "RPC:    https://${base/PORT/9000}"
     echo "Faucet: https://${base/PORT/9123}/v2/gas"
+    echo "Indexer: https://${base/PORT/9200}/status"
   } | tee "$DATA/STATUS.txt"
 }
 
