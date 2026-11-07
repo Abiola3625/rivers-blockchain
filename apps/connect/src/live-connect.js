@@ -13,7 +13,7 @@ function rvBadge(){return CN.me?'<span class="b '+(CN.me.active?'ok':'warn')+' d
 const cnType=b=>{try{return ntype('0x'+atob(b));}catch(e){return RV_T;}};
 const CNP={SUPP:'Supplier payment',TRAD:'Trade settlement',SALA:'Salary',INTC:'Intra-company',TREA:'Treasury',TAXS:'Tax payment',LOAN:'Loan'};
 const cnName=a=>CN.n&&CN.n.inst[a]?CN.n.inst[a].name:short(a,4);
-const cnCoins=()=>{const l=[];if(dReady()){l.push(ntype(DEX.cfg.coins.NGNs),ntype(DEX.cfg.coins.USDs));}l.push(RV_T);WAL.toks.forEach(t=>{const c=ntype(t.ct);if(!l.includes(c)&&!/::pool::LP</.test(c))l.push(c);});return l;};
+const cnCoins=()=>{const l=[];if(dReady()){l.push(ntype(DEX.cfg.coins.NGNs),ntype(DEX.cfg.coins.USDs));}l.push(RV_T);WAL.toks.forEach(t=>{const c=ntype(t.ct);if(!l.includes(c)&&!/::pool::LP<|::lend::Share</.test(c))l.push(c);});return l;};
 const cnBal=t=>{t=ntype(t);if(t===RV_T)return WAL.bal;const x=WAL.toks.find(k=>ntype(k.ct)===t);return x?stNum(x.raw,x.m.decimals):0;};
 function cnHead(){const m=CN.me;return '<div class="ch"><div class="who" style="display:flex;gap:12px;align-items:center">'+identicon(WAL.addr,44)+'<div><div style="font-weight:800;font-size:1.02rem">'+esc(m.name)+'</div><div class="muted" style="font-size:.78rem">'+esc(m.city)+', '+esc(m.country)+' · Tier '+m.tier+' · '+(m.active?'Active':'Suspended')+'</div></div></div><div class="btns">'+(CN.n.paused?'<span class="b warn dot">Payments paused by Rivers</span>':'<span class="b ok dot">Payments open</span>')+'</div></div>';}
 function cnIso(){const m=CN.me;const to=$('pyTo')&&$('pyTo').value;const t=CN.n&&CN.n.inst[to];const amt=$('pyA')?$('pyA').value:'';const coin=$('pyC')?$('pyC').value:'';const ref=$('pyRef')?$('pyRef').value:'';const pp=$('pyP')?$('pyP').value:'';

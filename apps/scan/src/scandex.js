@@ -3,7 +3,7 @@
    reserves. All prices are testnet prices with no real value. */
 const DEX={cfg:null,pools:[],at:0,slip:0.005,from:null,to:null,amt:'',busy:false};
 const D_FEE=0.003;
-function dIsDex(ct){if(/::pool::LP</.test(ct||''))return true;const c=DEX.cfg&&DEX.cfg.coins;return !!(c&&(ntype(ct)===ntype(c.USDs)||ntype(ct)===ntype(c.NGNs)));}
+function dIsDex(ct){if(/::pool::LP<|::lend::Share</.test(ct||''))return true;const c=DEX.cfg&&DEX.cfg.coins;return !!(c&&(ntype(ct)===ntype(c.USDs)||ntype(ct)===ntype(c.NGNs)));}
 const ntype=t=>{if(!t)return t;const m=String(t).match(/^0x([0-9a-f]+)(::.*)$/i);return m?'0x'+m[1].toLowerCase().padStart(64,'0')+m[2]:t;};
 const RV_T=ntype('0x2::sui::SUI');
 const dSym=t=>ntype(t)===RV_T?'RVRB':stSym(t);
@@ -55,7 +55,7 @@ function dSwapFill(){const f=DEX.from,t=DEX.to,a=+DEX.amt||0;const q=f===t?null:
  const g=$('swGo');if(!WAL.kp){g.textContent='Unlock wallet to swap';g.dataset.act='wconnect';g.disabled=false;return;}g.dataset.act='dswap';
  const over=a>dBal(f)-(f===RV_T?0.05:0);g.disabled=!q||!a||over;g.textContent=!a?'Enter an amount':over?'Not enough '+dSym(f):!q?'No route':'Swap';}
 function dSwapTx(route,amtIn,minOut){const tx=new Transaction();let c=coinWithBalance({type:route[0][1],balance:amtIn});route.forEach(([p,x,y],i)=>{const last=i===route.length-1;const fn=x===p.typeA?'swap_a_for_b':'swap_b_for_a';
-  c=tx.moveCall({target:DEX.cfg.package+'::pool::'+fn,typeArguments:[p.typeA,p.typeB],arguments:[tx.object(p.id),c,tx.pure.u64(last?minOut:0n)]});});tx.transferObjects([c],WAL.addr);return tx;}
+  c=tx.moveCall({target:DEX.cfg.package+'::pool::'+fn,typeArguments:[p.typeA,p.typeB],arguments:[tx.object(p.id),c,tx.pure.u64(last?minOut:0n),tx.object('0x6')]});});tx.transferObjects([c],WAL.addr);return tx;}
 async function dExec(tx,msg,errId){if(DEX.busy)return false;DEX.busy=true;const e=$(errId);if(e)e.innerHTML='';let ok=false;try{tx.setSender(WAL.addr);const r=await lvClient.signAndExecuteTransaction({transaction:tx,signer:WAL.kp,include:{effects:true}});const t=r.Transaction||r.FailedTransaction;
   if(r.FailedTransaction||!t.status||!t.status.success){const er=JSON.stringify(t.status&&t.status.error||'');throw new Error(/abort_code[^0-9]*3\b|ESlippage|MoveAbort.*, 3\)/.test(er)?'The price moved more than your slippage limit. Try again.':/EAlreadyClaimed|, 1\)/.test(er)&&/faucet/.test(er)?'You already claimed this epoch. Try again tomorrow.':'The transaction failed. '+er.slice(0,120));}
   toast(msg);ok=true;setTimeout(()=>{dWalBals();walRefresh();dexPoll();},1500);}catch(err){if(e)e.innerHTML='<div class="errbox">'+esc(err.message)+'</div>';else toast(err.message,false);}DEX.busy=false;return ok;}
@@ -93,10 +93,10 @@ Object.assign(LACT,{
  dlpadd(el){dLpSheet(DEX.pools.find(p=>p.id===el.dataset.id),'add');},dlprem(el){dLpSheet(DEX.pools.find(p=>p.id===el.dataset.id),'rem');},
  async dlpgo(el){const p=DEX.pools.find(x=>x.id===el.dataset.id);const tx=new Transaction();
   if(el.dataset.m==='add'){const a=stUnits(Number($('lA').value).toFixed(dDec(p.typeA)),dDec(p.typeA)),b=stUnits(Number($('lB').value).toFixed(dDec(p.typeB)),dDec(p.typeB));if(!a||!b)return $('lErr').innerHTML='<div class="errbox">Enter both amounts.</div>';
-   const [lp,ra,rb]=tx.moveCall({target:DEX.cfg.package+'::pool::add_liquidity',typeArguments:[p.typeA,p.typeB],arguments:[tx.object(p.id),coinWithBalance({type:p.typeA,balance:a}),coinWithBalance({type:p.typeB,balance:b}),tx.pure.u64(0)]});tx.transferObjects([lp,ra,rb],WAL.addr);
+   const [lp,ra,rb]=tx.moveCall({target:DEX.cfg.package+'::pool::add_liquidity',typeArguments:[p.typeA,p.typeB],arguments:[tx.object(p.id),coinWithBalance({type:p.typeA,balance:a}),coinWithBalance({type:p.typeB,balance:b}),tx.pure.u64(0),tx.object('0x6')]});tx.transferObjects([lp,ra,rb],WAL.addr);
    if(await dExec(tx,'Liquidity added.','lErr'))closeSheet();}
   else{const s=DLP[p.id];const pc=Math.min(100,Math.max(0,+$('lP').value||0));if(!s||!pc)return;const amt=s.raw*BigInt(Math.round(pc*100))/10000n;if(amt<=0n)return;
-   const [ca,cb]=tx.moveCall({target:DEX.cfg.package+'::pool::remove_liquidity',typeArguments:[p.typeA,p.typeB],arguments:[tx.object(p.id),coinWithBalance({type:lpType(p),balance:amt}),tx.pure.u64(0),tx.pure.u64(0)]});tx.transferObjects([ca,cb],WAL.addr);
+   const [ca,cb]=tx.moveCall({target:DEX.cfg.package+'::pool::remove_liquidity',typeArguments:[p.typeA,p.typeB],arguments:[tx.object(p.id),coinWithBalance({type:lpType(p),balance:amt}),tx.pure.u64(0),tx.pure.u64(0),tx.object('0x6')]});tx.transferObjects([ca,cb],WAL.addr);
    if(await dExec(tx,'Liquidity removed.','lErr'))closeSheet();}
   setTimeout(dLpBals,1800);},
 });

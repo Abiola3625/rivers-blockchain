@@ -8,6 +8,7 @@ module rivers_dex::pool;
 
 use std::type_name;
 use sui::balance::{Self, Balance, Supply};
+use sui::clock::Clock;
 use sui::coin::{Self, Coin};
 use sui::event;
 use sui::table::{Self, Table};
@@ -16,6 +17,8 @@ use sui::table::{Self, Table};
 const MINIMUM_LIQUIDITY: u64 = 1000;
 const FEE_BPS: u64 = 30;
 const BPS: u128 = 10000;
+/// Prices in the accumulators are fixed point with 18 decimals.
+const PRICE_SCALE: u256 = 1_000_000_000_000_000_000;
 
 const EZeroAmount: u64 = 1;
 const EPoolExists: u64 = 2;
@@ -32,6 +35,13 @@ public struct Pool<phantom A, phantom B> has key {
     lp_supply: Supply<LP<A, B>>,
     locked_lp: Balance<LP<A, B>>,
     fee_bps: u64,
+    /// Time-weighted price accumulators, as in Uniswap V2. Each one grows by the price before a
+    /// change multiplied by the milliseconds that price held. A price pushed within one transaction
+    /// holds for zero time, so it does not move the time-weighted average. `price_a_cumulative` is
+    /// the price of A in B, `price_b_cumulative` the price of B in A.
+    price_a_cumulative: u256,
+    price_b_cumulative: u256,
+    last_update_ms: u64,
 }
 
 /// Lists every pool once. The key is the two type names joined in creation order.
@@ -96,6 +106,7 @@ public fun create_pool<A, B>(
     registry: &mut Registry,
     a: Coin<A>,
     b: Coin<B>,
+    clock: &Clock,
     ctx: &mut TxContext,
 ): Coin<LP<A, B>> {
     assert!(type_name::with_defining_ids<A>() != type_name::with_defining_ids<B>(), ESameType);
@@ -114,6 +125,9 @@ public fun create_pool<A, B>(
         lp_supply,
         locked_lp,
         fee_bps: FEE_BPS,
+        price_a_cumulative: 0,
+        price_b_cumulative: 0,
+        last_update_ms: clock.timestamp_ms(),
     };
     let id = object::id(&pool);
     registry.pools.add(key<A, B>(), id);
@@ -136,8 +150,10 @@ public fun add_liquidity<A, B>(
     mut a: Coin<A>,
     mut b: Coin<B>,
     min_lp: u64,
+    clock: &Clock,
     ctx: &mut TxContext,
 ): (Coin<LP<A, B>>, Coin<A>, Coin<B>) {
+    accrue(pool, clock);
     let (ra, rb) = (pool.reserve_a.value() as u128, pool.reserve_b.value() as u128);
     let (va, vb) = (a.value() as u128, b.value() as u128);
     assert!(va > 0 && vb > 0, EZeroAmount);
@@ -168,8 +184,10 @@ public fun remove_liquidity<A, B>(
     lp: Coin<LP<A, B>>,
     min_a: u64,
     min_b: u64,
+    clock: &Clock,
     ctx: &mut TxContext,
 ): (Coin<A>, Coin<B>) {
+    accrue(pool, clock);
     let amount = lp.value() as u128;
     assert!(amount > 0, EZeroAmount);
     let supply = pool.lp_supply.supply_value() as u128;
@@ -202,8 +220,10 @@ public fun swap_a_for_b<A, B>(
     pool: &mut Pool<A, B>,
     a: Coin<A>,
     min_out: u64,
+    clock: &Clock,
     ctx: &mut TxContext,
 ): Coin<B> {
+    accrue(pool, clock);
     let amount_in = a.value();
     assert!(amount_in > 0, EZeroAmount);
     let out = amount_out(amount_in, pool.reserve_a.value(), pool.reserve_b.value(), pool.fee_bps);
@@ -219,8 +239,10 @@ public fun swap_b_for_a<A, B>(
     pool: &mut Pool<A, B>,
     b: Coin<B>,
     min_out: u64,
+    clock: &Clock,
     ctx: &mut TxContext,
 ): Coin<A> {
+    accrue(pool, clock);
     let amount_in = b.value();
     assert!(amount_in > 0, EZeroAmount);
     let out = amount_out(amount_in, pool.reserve_b.value(), pool.reserve_a.value(), pool.fee_bps);
@@ -243,6 +265,31 @@ fun emit_swap<A, B>(pool: &Pool<A, B>, a_to_b: bool, amount_in: u64, amount_out:
         trader: ctx.sender(),
     });
 }
+
+/// Adds the current prices, weighted by the time since the last change, to the accumulators.
+/// Called before every change to the reserves.
+fun accrue<A, B>(pool: &mut Pool<A, B>, clock: &Clock) {
+    let (a, b) = cumulative_prices(pool, clock);
+    pool.price_a_cumulative = a;
+    pool.price_b_cumulative = b;
+    pool.last_update_ms = clock.timestamp_ms();
+}
+
+/// The accumulators as they would be now, without changing the pool. Two readings taken some time
+/// apart give the time-weighted average price over that time: (later - earlier) / elapsed ms.
+public fun cumulative_prices<A, B>(pool: &Pool<A, B>, clock: &Clock): (u256, u256) {
+    let now = clock.timestamp_ms();
+    let elapsed = if (now > pool.last_update_ms) (now - pool.last_update_ms) as u256 else 0;
+    let ra = pool.reserve_a.value() as u256;
+    let rb = pool.reserve_b.value() as u256;
+    if (elapsed == 0 || ra == 0 || rb == 0) return (pool.price_a_cumulative, pool.price_b_cumulative);
+    (
+        pool.price_a_cumulative + rb * PRICE_SCALE / ra * elapsed,
+        pool.price_b_cumulative + ra * PRICE_SCALE / rb * elapsed,
+    )
+}
+
+public fun price_scale(): u256 { PRICE_SCALE }
 
 public fun reserves<A, B>(pool: &Pool<A, B>): (u64, u64) {
     (pool.reserve_a.value(), pool.reserve_b.value())

@@ -185,6 +185,9 @@ start() {
   fi
   indexer_start || echo "Indexer did not start; see $DATA/indexer.log" >&2
   pgrep -f "rivers-dex-setup.mjs" >/dev/null || nohup bash "$0" dex_setup >/dev/null 2>&1 &
+  # The keeper keeps the Rivers Lend price observations fresh.
+  pgrep -f "rivers-keeper.mjs" >/dev/null || RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \
+    nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-keeper.mjs" >>"$DATA/keeper.log" 2>&1 &
   # Make the ports reachable from the internet. This can also be done in the Ports tab.
   gh codespace ports visibility 9000:public 9123:public 9200:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || true
   base="${CODESPACE_NAME}-PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"

@@ -2,7 +2,7 @@
    Self-custody wallet and DeFi on Rivers: balances, send, receive, swap, pools, staking, token
    creation, activity and security. Keys stay in this browser, encrypted with the user's password. */
 const WV={act:'all',acts:[],actAt:0,lp:[],pos:[],vest:[]};
-const wvTokens=()=>{const l=[{ct:RV_T,sym:'RVRB',dec:9,raw:String(BigInt(Math.round(WAL.bal*1e9)))}];WAL.toks.forEach(t=>{if(!/::pool::LP</.test(t.ct))l.push({ct:ntype(t.ct),sym:t.m.symbol,dec:t.m.decimals,raw:t.raw,name:t.m.name});});return l;};
+const wvTokens=()=>{const l=[{ct:RV_T,sym:'RVRB',dec:9,raw:String(BigInt(Math.round(WAL.bal*1e9)))}];WAL.toks.forEach(t=>{if(!/::pool::LP<|::lend::Share</.test(t.ct))l.push({ct:ntype(t.ct),sym:t.m.symbol,dec:t.m.decimals,raw:t.raw,name:t.m.name});});return l;};
 const wvVal=t=>{const p=dReady()?dPrice(t.ct):null;return p==null?null:stNum(t.raw,t.dec)*p;};
 const wvStaked=()=>WAL.stakes.reduce((a,x)=>a+x.principal,0);
 function wvTotal(){let v=0,known=true;wvTokens().forEach(t=>{const x=wvVal(t);if(x==null)known=false;else v+=x;});const pr=dReady()?dPrice(RV_T):null;if(pr!=null)v+=wvStaked()*pr;WV.lp.forEach(l=>v+=l.usd||0);return {v,known:known&&pr!=null};}
@@ -19,7 +19,6 @@ const WSUBS=[['portfolio','Home',IC.home],['swap','Swap',IC.swap],['create','Cre
 VIEWS.wallet={subs:WSUBS,
  build(sub){
   if(sub==='crosschain')return lvSoonPage('Cross-chain','Moving assets between Rivers and other chains needs audited bridge contracts on both sides and independent operators. It opens after those are in place.');
-  if(sub==='lend')return lvSoonPage('Lend','Rivers Lend opens after the lending markets and their price oracle are audited.');
   if(!WAL.kp)return rvGate('Rivers Wallet','Hold, send, swap and stake RVRB and every Rivers token. Create a wallet or import one with its 12 recovery words.');
   if(sub==='swap')return EXX.swap.build();if(sub==='pools')return EXX.pools.build();if(sub==='create')return EXX.create.build();
   if(sub==='portfolio')return `
@@ -41,6 +40,11 @@ VIEWS.wallet={subs:WSUBS,
     <div class="kv" id="stKv"></div><div id="stErr"></div><button class="btn gold wide" data-act="wvstake">Stake</button>
     <p class="muted" style="font-size:.76rem">Rewards are paid at the end of each epoch (one day). Unstaked RVRB returns to your balance with its rewards.</p></div>
    <div class="card"><div class="ch"><h2>Your stakes</h2></div><div class="list" id="stMine"></div></div></div>`;
+  if(sub==='lend'){if(!RVC||!RVC.lend){rvConfig().then(c=>{if(c&&c.lend&&CUR.sub==='lend')route();});return lvSoonPage('Lend','Rivers Lend is being set up on this testnet. This page opens when the first markets are live.');}
+   return `<div class="g c4" id="ldK"></div>
+  <div class="card"><div class="ch"><div class="ttl"><h2>Markets</h2><span class="sub">Rates move with how much of each market is borrowed. Collateral is valued with a 10-minute time-weighted price from Rivers DEX.</span></div><span class="b warn">Testnet</span></div>
+   <div class="tw"><table><thead><tr><th>Market</th><th class="n">Supplied</th><th class="n">Borrowed</th><th>Utilization</th><th class="n">Supply APY</th><th class="n">Borrow APY</th><th class="n">You supply</th><th class="n">Your loan</th><th></th></tr></thead><tbody id="ldT"></tbody></table></div></div>
+  <div class="card"><div class="ch"><h2>How it works</h2></div><div class="kv"><div><span>Borrowing limit</span><span>Up to the market's loan-to-value of your collateral</span></div><div><span>Liquidation</span><span>Above the liquidation threshold, anyone can repay half your loan and take collateral worth it plus a bonus</span></div><div><span>Price</span><span>Average of the Rivers DEX pool over at least 10 minutes; a price pushed inside one transaction does not count</span></div><div><span>Pausing</span><span>Rivers Core can stop new borrowing. Repaying, supplying and withdrawing always work.</span></div></div></div>`;}
   if(sub==='activity')return `
   <div class="card"><div class="ch"><h2>Activity</h2><div class="seg">${[['all','All'],['out','Sent'],['in','Received'],['call','Contract calls']].map(f=>'<button data-act="wvactf" data-v="'+f[0]+'" class="'+(WV.act===f[0]?'on':'')+'">'+f[1]+'</button>').join('')}</div></div><div class="list" id="acL"><div class="empty">Loading…</div></div></div>`;
   if(sub==='security')return `
@@ -56,7 +60,7 @@ VIEWS.wallet={subs:WSUBS,
  after(sub){if(!WAL.kp)return;if(sub==='swap')return EXX.swap.after();if(sub==='pools')return EXX.pools.after();if(sub==='create')return EXX.create.after();
   if(sub==='stake'){const a=$('stA');a.addEventListener('input',()=>VIEWS.wallet.update('stake'));$('stV').addEventListener('change',()=>VIEWS.wallet.update('stake'));}
   wvLoad();},
- update(sub){if(!WAL.kp)return;if(['portfolio','stake','activity'].includes(sub)&&!$({portfolio:'wTot',stake:'stK',activity:'acL'}[sub]))return;if(sub==='swap')return EXX.swap.update();if(sub==='pools')return EXX.pools.update();if(sub==='create')return EXX.create.update&&EXX.create.update();
+ update(sub){if(!WAL.kp)return;if(['portfolio','stake','activity','lend'].includes(sub)&&!$({portfolio:'wTot',stake:'stK',activity:'acL',lend:'ldT'}[sub]))return;if(sub==='swap')return EXX.swap.update();if(sub==='pools')return EXX.pools.update();if(sub==='create')return EXX.create.update&&EXX.create.update();
   const pr=dReady()?dPrice(RV_T):null;const apy=wvApy();
   if(sub==='portfolio'){const T=wvTotal();set2('wTot',T.v?usdF(T.v):fmt(WAL.bal,4)+' RVRB');const c=$('wChg');if(c)c.textContent=(T.known?'':'Some tokens have no pool price yet · ')+fmt(WAL.bal,4)+' RVRB available · '+fmt(wvStaked(),2)+' RVRB staked';
    const toks=wvTokens();const as=$('wAssets');if(as){const h='<div class="list">'+toks.map(t=>{const v=wvVal(t);const p=dReady()?dPrice(t.ct):null;return '<div class="li">'+(t.ct===RV_T?tokIcon('RVRB',30):stIco(t.sym,30))+'<span><b>'+esc(t.sym)+'</b><br><span class="muted" style="font-size:.72rem">'+(p!=null?usdF(p):'No pool price')+'</span></span><span class="r">'+fmt(stNum(t.raw,t.dec),4)+'<div class="muted" style="font-size:.7rem">'+(v!=null?usdF(v):'')+'</div></span></div>';}).join('')+'</div>';if(as._h!==h){as.innerHTML=h;as._h=h;}}
@@ -68,6 +72,7 @@ VIEWS.wallet={subs:WSUBS,
    const v=V[+($('stV')||{}).value||0];const a=+($('stA')||{}).value||0;set2('stBal','Available '+fmt(WAL.bal,4));set2('stUsd',a&&pr!=null?'≈ '+usdF(a*pr):'');
    const kv=$('stKv');if(kv&&v)kv.innerHTML=[['Validator',esc(v.name)],['Commission',fmt(v.comm,2)+'%'],['Validator stake',compact(v.stake)+' RVRB'],['Rewards start','Next epoch'],['Estimated yearly reward',apy!=null&&a?fmt(a*apy/100,2)+' RVRB':'—']].map(x=>'<div><span>'+x[0]+'</span><span>'+x[1]+'</span></div>').join('');
    const m=$('stMine');if(m){const h=WAL.stakes.map(x=>'<div class="li">'+(x.val?identicon(x.val.addr,26):'')+'<span><b>'+fmt(x.principal,2)+' RVRB</b><br><span class="muted" style="font-size:.72rem">'+esc(x.val?x.val.name:short(x.pool||'',6))+' · since epoch '+x.epoch+'</span></span><span class="r"><button class="btn xs" data-act="walunstake" data-id="'+x.id+'">Unstake</button></span></div>').join('')||'<div class="empty">You have no stake yet.</div>';if(m._h!==h){m.innerHTML=h;m._h=h;}}}
+  if(sub==='lend'&&$('ldT'))wvLend();
   if(sub==='activity'){const l=$('acL');if(!l)return;const f=WV.act;const rows=WV.acts.filter(t=>f==='all'||(f==='out'&&t.sender===WAL.addr&&t.kind!=='call')||(f==='in'&&t.sender!==WAL.addr)||(f==='call'&&t.kind!=='transfer'));const h=wvRows(rows)||'<div class="empty">'+(IDX.ok?'No activity in this view.':'Activity needs the Rivers indexer, which is not reachable right now.')+'</div>';if(l._h!==h){l.innerHTML=h;l._h=h;}}}};
 function wvApy(){const r=Object.values(IDX.rewards||{}).map(x=>x.filter(e=>e.apy!=null).slice(-1)[0]).filter(Boolean);return r.length?r.reduce((a,x)=>a+x.apy,0)/r.length:null;}
 function wvRows(list){return list.map(t=>{const out=t.sender===WAL.addr;const lab=t.kind==='call'||t.kind==='publish'?rvLabel(t.label,t.kind):out?'Sent':'Received';
@@ -89,3 +94,32 @@ Object.assign(LACT,{
   catch(err){toast(err.name==='OperationError'?'The current password is wrong.':err.message,false);}},
 });
 function rvWho(){return 'My wallet';}
+/* ---------- Rivers Lend ---------- */
+const WL={m:[],at:0};
+async function wvLendLoad(){WL.m=await rvLendMarkets(WAL.addr);WL.at=Date.now();if(CUR.sub==='lend')wvLend(true);}
+const wlF=(raw,t)=>fmt(stNum(String(raw),dDec(t)),Math.min(4,dDec(t)));
+function wvLend(fresh){if(!fresh&&Date.now()-WL.at>15000){wvLendLoad();}const M=WL.m;const k=$('ldK');if(!k)return;
+ const usd=(raw,t)=>{const p=dReady()?dPrice(t):null;return p==null?0:stNum(String(raw),dDec(t))*p;};
+ const sup=M.reduce((a,m)=>a+usd(m.supplied,m.D),0),bor=M.reduce((a,m)=>a+usd(m.debt,m.D),0),mine=M.reduce((a,m)=>a+usd(m.mySupply||0n,m.D),0),myd=M.reduce((a,m)=>a+usd(m.myDebt||0n,m.D),0);
+ k.innerHTML=stat('Supplied',usdF(sup),'all markets')+stat('Borrowed',usdF(bor),'all markets')+stat('You supply',usdF(mine),'earning interest')+stat('You owe',usdF(myd),M.some(m=>m.myDebt>0n)?'see health below':'no loans');
+ const h=M.map(m=>{const pr=rvLendPrice(m);const colV=pr!=null?stNum(String(m.myCol),dDec(m.C))*pr:null;const dv=stNum(String(m.myDebt),dDec(m.D));const hf=m.myDebt>0n&&colV!=null?colV*m.liq/dv:null;
+  return '<tr><td><b>'+esc(dSym(m.D))+'</b> <span class="muted" style="font-size:.74rem">against '+esc(dSym(m.C))+'</span>'+(m.paused?' <span class="b warn">Borrowing paused</span>':'')+'<div class="muted" style="font-size:.7rem">LTV '+pct(m.ltv,0)+' · liquidation at '+pct(m.liq,0)+'</div></td><td class="n">'+wlF(m.supplied,m.D)+'</td><td class="n">'+wlF(m.debt,m.D)+'</td><td><div class="bar"><i style="width:'+(m.util*100)+'%"></i></div><span class="muted" style="font-size:.72rem">'+pct(m.util,1)+'</span></td><td class="n">'+pct(m.sr,2)+'</td><td class="n">'+pct(m.br,2)+'</td><td class="n">'+wlF(m.mySupply||0n,m.D)+'</td><td class="n">'+(m.myCol>0n||m.myDebt>0n?wlF(m.myDebt,m.D)+' '+esc(dSym(m.D))+'<div class="muted" style="font-size:.7rem">'+wlF(m.myCol,m.C)+' '+esc(dSym(m.C))+' collateral'+(hf!=null?' · health '+fmt(hf,2):'')+'</div>':'—')+'</td><td><div class="btns"><button class="btn xs" data-act="wlact" data-id="'+m.id+'" data-v="supply">Supply</button><button class="btn xs pri" data-act="wlact" data-id="'+m.id+'" data-v="borrow">Borrow</button>'+(m.myShares>0n?'<button class="btn xs" data-act="wlact" data-id="'+m.id+'" data-v="withdraw">Withdraw</button>':'')+(m.myDebt>0n?'<button class="btn xs" data-act="wlact" data-id="'+m.id+'" data-v="repay">Repay</button>':'')+(m.myCol>0n?'<button class="btn xs" data-act="wlact" data-id="'+m.id+'" data-v="uncol">Take collateral</button>':'')+'</div></td></tr>';}).join('')||'<tr><td colspan="9"><div class="empty">Loading markets…</div></td></tr>';
+ const t=$('ldT');if(t._h!==h){t.innerHTML=h;t._h=h;}}
+const wlBal=t=>{t=ntype(t);if(t===RV_T)return WAL.bal;const x=WAL.toks.find(k=>ntype(k.ct)===t);return x?stNum(x.raw,x.m.decimals):0;};
+function wlSheet(m,mode){const C=dSym(m.C),D=dSym(m.D);const pr=rvLendPrice(m);const T={supply:['Supply '+D,'Amount of '+D+' to lend','Earns '+pct(m.sr,2)+' a year at the current rate. You can withdraw whatever is not lent out.'],
+  borrow:['Borrow '+D,'Amount of '+D+' to borrow','Add '+C+' as collateral first or in the same step. You can borrow up to '+pct(m.ltv,0)+' of its value.'],withdraw:['Withdraw '+D,'Share of your supply to withdraw (%)',''],repay:['Repay '+D,'Amount of '+D+' to repay','Anything above your loan is returned.'],uncol:['Take back '+C,'Amount of '+C,'You can take back collateral while your loan stays within the limit.']}[mode];
+ let extra='';if(mode==='borrow')extra='<div class="fld"><label for="wlC">'+esc(C)+' to add as collateral (optional)</label><input class="in mono" id="wlC" inputmode="decimal" placeholder="0"><span class="muted" style="font-size:.72rem">Balance '+fmt(wlBal(m.C),4)+' '+esc(C)+(pr!=null?' · 1 '+esc(C)+' ≈ '+fmt(pr,4)+' '+esc(D):'')+'</span></div>';
+ openSheet(T[0],extra+'<div class="fld"><label for="wlA">'+T[1]+'</label><input class="in mono" id="wlA" inputmode="decimal" '+(mode==='withdraw'?'value="100"':mode==='repay'?'value="'+String(Math.min(wlBal(m.D),stNum(String(m.myDebt),dDec(m.D))))+'"':'')+'><span class="muted" style="font-size:.72rem">'+(mode==='supply'||mode==='repay'?'Balance '+fmt(wlBal(m.D),4)+' '+esc(D):mode==='uncol'?'Deposited '+wlF(m.myCol,m.C)+' '+esc(C):mode==='borrow'?'Available to borrow in the market '+wlF(m.avail,m.D)+' '+esc(D):'')+'</span></div><p class="rvnote">'+T[2]+'</p><div id="wlErr"></div><button class="btn pri wide" data-act="wlgo" data-id="'+m.id+'" data-v="'+mode+'">'+T[0]+'</button>','Rivers Lend · '+D+' against '+C);}
+Object.assign(LACT,{
+ wlact(el){const m=WL.m.find(x=>x.id===el.dataset.id);if(m)wlSheet(m,el.dataset.v);},
+ async wlgo(el){const m=WL.m.find(x=>x.id===el.dataset.id);const mode=el.dataset.v;const e=$('wlErr');e.innerHTML='';const P=RVC.package+'::lend::';const TA=[m.C,m.D];const pool=DEX.pools.find(x=>x.id===m.pool);const TP=[m.C,m.D,pool.typeA,pool.typeB];
+  const tx=new Transaction();const v=$('wlA').value.trim();
+  try{
+   if(mode==='supply'){const a=stUnits(v,dDec(m.D));if(!a)throw new Error('Enter an amount.');const sh=tx.moveCall({target:P+'supply',typeArguments:TA,arguments:[tx.object(m.id),coinWithBalance({type:m.D,balance:a}),tx.object('0x6')]});tx.transferObjects([sh],WAL.addr);}
+   else if(mode==='withdraw'){const pc=Math.min(100,Math.max(0,+v||0));const n=m.myShares*BigInt(Math.round(pc*100))/10000n;if(n<=0n)throw new Error('Enter a share above zero.');const c=tx.moveCall({target:P+'withdraw',typeArguments:TA,arguments:[tx.object(m.id),coinWithBalance({type:m.shareType,balance:n}),tx.object('0x6')]});tx.transferObjects([c],WAL.addr);}
+   else if(mode==='borrow'){const col=$('wlC').value.trim();if(col&&+col>0){const ca=stUnits(col,dDec(m.C));if(!ca)throw new Error('Check the collateral amount.');tx.moveCall({target:P+'deposit_collateral',typeArguments:TA,arguments:[tx.object(m.id),coinWithBalance({type:m.C,balance:ca})]});}
+    const a=stUnits(v,dDec(m.D));if(!a)throw new Error('Enter an amount to borrow.');tx.moveCall({target:P+'observe',typeArguments:TP,arguments:[tx.object(m.id),tx.object(m.pool),tx.object('0x6')]});const c=tx.moveCall({target:P+'borrow',typeArguments:TP,arguments:[tx.object(m.id),tx.object(m.pool),tx.pure.u64(a),tx.object('0x6')]});tx.transferObjects([c],WAL.addr);}
+   else if(mode==='repay'){const a=stUnits(v,dDec(m.D));if(!a)throw new Error('Enter an amount.');if(+v>wlBal(m.D))throw new Error('You hold '+fmt(wlBal(m.D),4)+' '+dSym(m.D)+'.');const ch=tx.moveCall({target:P+'repay',typeArguments:TA,arguments:[tx.object(m.id),tx.pure.address(WAL.addr),coinWithBalance({type:m.D,balance:a}),tx.object('0x6')]});tx.transferObjects([ch],WAL.addr);}
+   else if(mode==='uncol'){const a=stUnits(v,dDec(m.C));if(!a)throw new Error('Enter an amount.');const c=tx.moveCall({target:P+'withdraw_collateral',typeArguments:TP,arguments:[tx.object(m.id),tx.object(m.pool),tx.pure.u64(a),tx.object('0x6')]});tx.transferObjects([c],WAL.addr);}
+   await rvSign(tx,'Done.');closeSheet();setTimeout(wvLendLoad,1800);}catch(err){e.innerHTML='<div class="errbox">'+esc(err.message)+'</div>';}},
+});

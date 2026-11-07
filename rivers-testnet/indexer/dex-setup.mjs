@@ -132,6 +132,7 @@ async function main() {
     cfg.coins = { USDs: cfg.package + '::usds::USDS', NGNs: cfg.package + '::ngns::NGNS' };
     cfg.faucets = { USDs: find('::test_faucet::Faucet<' + cfg.coins.USDs), NGNs: find('::test_faucet::Faucet<' + cfg.coins.NGNs) };
     cfg.currencies = { USDs: find('::coin_registry::Currency<' + cfg.coins.USDs), NGNs: find('::coin_registry::Currency<' + cfg.coins.NGNs) };
+    cfg.lendAdminCap = find('::lend::LendAdminCap');
     cfg.publishDigest = t.digest;
     save();
   }
@@ -154,11 +155,40 @@ async function main() {
     if (a === RVRB) await fund(amtA / 1e9 + 5);
     const tx = new Transaction();
     const coinOf = (type, amt) => coinWithBalance({ type, balance: BigInt(Math.round(amt)) });
-    const lp = tx.moveCall({ target: cfg.package + '::pool::create_pool', typeArguments: [a, b], arguments: [tx.object(cfg.registry), coinOf(a, amtA), coinOf(b, amtB)] });
+    const lp = tx.moveCall({ target: cfg.package + '::pool::create_pool', typeArguments: [a, b], arguments: [tx.object(cfg.registry), coinOf(a, amtA), coinOf(b, amtB), tx.object('0x6')] });
     tx.transferObjects([lp], me);
     const t = await exec(tx, 'create pool ' + name);
     const ty = t.objectTypes;
     cfg.pools[name] = { id: Object.keys(ty).find((k) => ty[k].includes('::pool::Pool<')), a, b };
+    save();
+  }
+  // Rivers Lend: RVRB as collateral for USDs loans, and USDs as collateral for RVRB loans, both
+  // valued by the RVRB/USDs pool. The setup supplies the first lending liquidity.
+  cfg.lend = cfg.lend || {};
+  const pool = cfg.pools['RVRB/USDs'].id;
+  const markets = [
+    ['RVRB→USDs', RVRB, cfg.coins.USDs, 'create_market_ab', 20000 * 1e6],
+    ['USDs→RVRB', cfg.coins.USDs, RVRB, 'create_market_ba', 100 * 1e9],
+  ];
+  for (const [name, c, d, fn, seed] of markets) {
+    if (cfg.lend[name]) continue;
+    const tx = new Transaction();
+    tx.moveCall({ target: cfg.package + '::lend::' + fn, typeArguments: [c, d], arguments: [tx.object(cfg.lendAdminCap), tx.object(pool), tx.object('0x6')] });
+    const t = await exec(tx, 'create lending market ' + name);
+    const id = Object.keys(t.objectTypes).find((k) => t.objectTypes[k].includes('::lend::Market<'));
+    if (d === RVRB) await fund(seed / 1e9 + 5);
+    const tx2 = new Transaction();
+    const sh = tx2.moveCall({ target: cfg.package + '::lend::supply', typeArguments: [c, d], arguments: [tx2.object(id), coinWithBalance({ type: d, balance: BigInt(seed) }), tx2.object('0x6')] });
+    tx2.transferObjects([sh], me);
+    await exec(tx2, 'supply ' + name);
+    cfg.lend[name] = { id, collateral: c, debt: d, pool };
+    save();
+  }
+  if (!cfg.lendAdminHanded) {
+    const tx = new Transaction();
+    tx.transferObjects([tx.object(cfg.lendAdminCap)], ADMIN);
+    await exec(tx, 'hand Rivers Lend admin capability to the admin');
+    cfg.lendAdminHanded = true;
     save();
   }
   cfg.ready = true;
