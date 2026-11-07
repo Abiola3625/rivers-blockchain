@@ -1,0 +1,45 @@
+# Packages the Oracle Cloud stack for one Rivers validator (rivers-testnet/oracle plus
+# validator-setup.sh) as a zip in the "oracle-stack" release. The "Deploy to Oracle Cloud" button
+# in Rivers Validator opens Oracle Resource Manager with this zip.
+name: Oracle stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "rivers-testnet/oracle/**"
+      - "rivers-testnet/validator-setup.sh"
+      - ".github/workflows/rivers-oracle-stack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rivers-oracle-stack
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: rivers-testnet
+      - name: Package
+        run: |
+          mkdir -p out stack
+          cp rivers-testnet/oracle/main.tf rivers-testnet/oracle/schema.yaml rivers-testnet/validator-setup.sh stack/
+          (cd stack && zip -q ../out/rivers-validator-oracle.zip main.tf schema.yaml validator-setup.sh)
+          sha256sum out/rivers-validator-oracle.zip
+      # A prerelease that is never marked latest, so servers that download
+      # releases/latest/download/... keep getting the newest Rivers build.
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: oracle-stack
+          name: Oracle Cloud stack for a Rivers validator
+          body: Opened by the Deploy to Oracle Cloud button in Rivers Validator → Launch.
+          prerelease: true
+          make_latest: "false"
+          files: out/rivers-validator-oracle.zip

@@ -6,8 +6,16 @@ Rivers Validator has a **Launch a validator** page that needs no command line:
 
 1. Name your validator.
 2. Press **Create account**. Your browser makes the validator account; write its 12 words down.
-3. Pick your provider (Oracle Cloud free tier, Google Cloud, AWS or any Ubuntu server), follow the four steps shown, and paste the setup with **Copy setup**. The page fills in your validator's name, the network addresses, the account key and, on the testnet, the faucet that pays the registration fee.
+3. Pick your provider.
+   - **Oracle Cloud (free)**: press **Copy launch code**, then **Deploy to Oracle Cloud**. Oracle opens a form with everything filled in. Paste the launch code into **Rivers launch code**, then select **Next** and **Create**. Oracle builds the server, the network and the firewall rules within the Always Free allowance (2 Ampere OCPUs, 12 GB memory, 150 GB disk).
+   - **Oracle Cloud (by hand), Google Cloud, AWS or any Ubuntu server**: follow the four steps shown and paste the setup with **Copy setup**.
+
+   The launch code and the setup carry your validator's name, the network addresses, the account key and, on the testnet, the faucet that pays the registration fee.
 4. Press **I have created the server**. The page follows the validator on chain: server starting, account funded, candidate registered, active. When it shows *Candidate registered*, press **Stake to this validator**.
+
+> **Important:** The Deploy to Oracle Cloud button needs an existing Oracle Cloud account. It does not create one. If Oracle reports that it is out of capacity for Ampere servers, change **Availability domain** to 2 or 3 on the form, or try again later.
+
+The Oracle stack is in `rivers-testnet/oracle` (Terraform for Oracle Resource Manager). The workflow `.github/workflows/rivers-oracle-stack.yml` publishes it as `rivers-validator-oracle.zip` in the `oracle-stack` release.
 
 After joining, sign in to Rivers Validator with the validator's 12 words to set commission and the public profile.
 

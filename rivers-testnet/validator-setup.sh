@@ -29,6 +29,8 @@ RIVERS_INDEXER="https://INDEXER-ADDRESS-OF-THE-NETWORK"
 # browser (the owner keeps its 12 words), and the testnet faucet that pays the registration fee.
 VALIDATOR_ACCOUNT_KEY=""
 RIVERS_FAUCET=""
+# The Oracle Cloud stack (rivers-testnet/oracle) passes the values above in RIVERS_LAUNCH_CODE,
+# the launch code from Rivers Validator → Launch: base64 of {"n","r","i","f","k"}.
 
 set -euo pipefail
 exec > >(tee -a /var/log/rivers-validator-setup.log) 2>&1
@@ -42,6 +44,17 @@ echo "Rivers validator setup started $(date -u)"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y curl ca-certificates jq
+
+if [ -n "${RIVERS_LAUNCH_CODE:-}" ]; then
+  L="$(echo "$RIVERS_LAUNCH_CODE" | tr -- '-_' '+/' | base64 -d 2>/dev/null || true)"
+  [ -n "$L" ] || { echo "The launch code is not valid."; exit 1; }
+  VALIDATOR_NAME="$(echo "$L" | jq -r '.n // empty' | tr -cd 'A-Za-z0-9 ._-' | cut -c1-40)"
+  RIVERS_RPC="$(echo "$L" | jq -r '.r // empty')"
+  RIVERS_INDEXER="$(echo "$L" | jq -r '.i // empty')"
+  RIVERS_FAUCET="$(echo "$L" | jq -r '.f // empty')"
+  VALIDATOR_ACCOUNT_KEY="$(echo "$L" | jq -r '.k // empty')"
+  unset L RIVERS_LAUNCH_CODE
+fi
 
 id rivers >/dev/null 2>&1 || useradd --system --create-home --home-dir "$DIR" --shell /usr/sbin/nologin rivers
 mkdir -p "$DIR/keys" "$DIR/db" "$DIR/config"

@@ -1,0 +1,70 @@
+# Copyright (c) Mysten Labs, Inc.
+# SPDX-License-Identifier: Apache-2.0
+title: "Rivers validator"
+description: "One Rivers validator on an Always Free Ampere A1 server. Paste your launch code from Rivers Validator, then select Next and Create."
+schemaVersion: 1.1.0
+version: "20261107"
+locale: "en"
+
+variableGroups:
+  - title: "Your validator"
+    variables:
+      - launch_code
+  - title: "Server (the defaults fit Always Free)"
+    variables:
+      - availability_domain
+      - ocpus
+      - memory_gbs
+      - disk_gbs
+      - ssh_public_key
+  - title: "Hidden"
+    visible: false
+    variables:
+      - tenancy_ocid
+      - region
+      - compartment_ocid
+
+variables:
+  launch_code:
+    type: password
+    title: "Rivers launch code"
+    description: "Paste the launch code you copied in Rivers Validator → Launch. It contains the validator account key, so paste it only here, in your own Oracle account."
+    required: true
+  availability_domain:
+    type: integer
+    title: "Availability domain"
+    description: "Leave 1. If Oracle says it is out of capacity, change this to 2 or 3, or try again later."
+    minimum: 1
+    maximum: 3
+    default: 1
+  ocpus:
+    type: integer
+    title: "OCPUs"
+    description: "2 is the Always Free limit."
+    minimum: 1
+    maximum: 2
+    default: 2
+  memory_gbs:
+    type: integer
+    title: "Memory (GB)"
+    description: "12 GB is the Always Free limit."
+    minimum: 6
+    maximum: 12
+    default: 12
+  disk_gbs:
+    type: integer
+    title: "Disk (GB)"
+    description: "Always Free includes 200 GB of storage in total."
+    minimum: 50
+    maximum: 200
+    default: 150
+  ssh_public_key:
+    type: oci:core:ssh:publickey
+    title: "SSH public key (optional)"
+    required: false
+
+outputGroups:
+  - title: "Validator server"
+    outputs:
+      - server_ip
+      - next_step
