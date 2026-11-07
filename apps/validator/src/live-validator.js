@@ -7,7 +7,7 @@ const vdCur=()=>V.find(v=>v.id===VD.sel)||vdMine()||V[0];
 function rvWho(){const m=vdMine();return m?m.name:'Signed in';}
 function rvBadge(){return vdMine()?'<span class="b gold">Validator operator</span>':'';}
 async function vdLoad(v){if(!IDX.ok||!v)return;try{VD.ev=await idxGet('/events?module=validator&addr='+v.addr+'&limit=500');VD.evAt=Date.now();VD.evFor=v.addr;}catch(e){}if(CUR.app==='validator')VIEWS.validator.update(CUR.sub);}
-const VSUBS=[['overview','Dashboard',IC.home],['network','Validator set',IC.server],['operate','Operate',IC.sliders],['join','Join',IC.plus||IC.stake],['guide','Server setup',IC.code]];
+const VSUBS=[['overview','Dashboard',IC.home],['network','Validator set',IC.server],['operate','Operate',IC.sliders],['join','Join',IC.plus||IC.stake],['guide','Launch a validator',IC.rocket||IC.code]];
 const vpar=()=>((LV.sys||{}).parameters)||{};
 VIEWS.validator={subs:VSUBS,
  build(sub){const v=vdCur();
@@ -32,8 +32,8 @@ VIEWS.validator={subs:VSUBS,
     <div class="fld"><label for="jnA">Candidate address</label><input class="in mono" id="jnA" placeholder="0x…" value="${WAL.addr||''}"></div><div class="fld"><label for="jnAmt">RVRB</label><input class="in mono" id="jnAmt" inputmode="decimal" value="${fmt(lvRv(vpar().minValidatorJoiningStake||0),0).replace(/,/g,'')}"></div><div id="jnErr"></div><button class="btn" data-act="vdstake">Stake</button> <button class="btn pri" data-act="vdjoin">Request to join (signed by the candidate)</button></div></div>`;
   if(sub==='guide')return vdGuide();
   return '';},
- after(sub){if(sub==='overview'){$('vdSel').addEventListener('change',e=>{VD.sel=+e.target.value;VD.ev=[];vdLoad(vdCur());VIEWS.validator.update('overview');});vdLoad(vdCur());}},
- update(sub){const par=vpar();
+ after(sub){if(sub==='guide'){if(LZ.step===4){LZ.at=0;lzStatus();}return;}if(sub==='overview'){$('vdSel').addEventListener('change',e=>{VD.sel=+e.target.value;VD.ev=[];vdLoad(vdCur());VIEWS.validator.update('overview');});vdLoad(vdCur());}},
+ update(sub){if(sub==='guide'){if(LZ.step===4)lzStatus();return;}const par=vpar();
   if(sub==='overview'&&$('vdK')){const v=vdCur();if(!v)return;if(VD.evFor!==v.addr&&Date.now()-VD.evAt>3000)vdLoad(v);const rw=(IDX.rewards&&IDX.rewards[v.addr]||[]).filter(r=>r.rewards!=null);const apy=rw.length?rw[rw.length-1].apy:null;
    $('vdH').innerHTML=identicon(v.addr,44)+'<div><div style="font-weight:800;font-size:1.05rem">'+esc(v.name)+'</div><div class="mono muted" style="font-size:.74rem">'+short(v.addr,10)+'</div></div>';
    const bits=v.bits||[];const signed=bits.filter(x=>x).length;
@@ -52,14 +52,59 @@ VIEWS.validator={subs:VSUBS,
    const steps=[['Run a Rivers node on a public server','Follow Server setup. The script installs the node, creates its keys and prints the validator account address and its 12 words.',false],['Register as a candidate','The script does this once the account holds a little RVRB for fees.',false],['Reach '+fmt(lvRv(par.minValidatorJoiningStake||0))+' RVRB of stake','Stake to the candidate from any wallet, with the form on this page.',false],['Request to join','Sign in here with the validator account and choose Request to join, or let the script do it.',false],['Validate','The validator joins at the start of the next epoch.',!!mine]];
    $('jnS').innerHTML=steps.map((s,i)=>'<div class="li"><span class="chk '+(s[2]?'ok':'')+'">'+(s[2]?'✓':i+1)+'</span><span><b style="font-size:.86rem">'+s[0]+'</b><br><span class="muted" style="font-size:.76rem">'+s[1]+'</span></span></div>').join('');
    $('jnR').innerHTML=[['Stake to join',fmt(lvRv(par.minValidatorJoiningStake||0))+' RVRB'],['Removed below',fmt(lvRv(par.validatorVeryLowStakeThreshold||0))+' RVRB at once, or under '+fmt(lvRv(par.validatorLowStakeThreshold||0))+' RVRB for '+fmt(Number(par.validatorLowStakeGracePeriod||0))+' epochs'],['Seats',fmt(V.length)+' of '+fmt(Number(par.maxValidatorCount||0))+' taken'],['Candidates now',fmt(cand)],['Joining next epoch',fmt(pend)],['Server','4 cores, 16 GB memory, 500 GB SSD, public IPv4, ports 8080 and 8084 open']].map(x=>'<div><span>'+x[0]+'</span><span>'+x[1]+'</span></div>').join('');}}};
-function vdGuide(){const rpc=LV_RPC,ix=LV_IDX;return `<div class="card hud"><div class="ch"><div class="ttl"><h2>Set up a validator server</h2><span class="sub">One script, no typing on the server</span></div></div>
- <div class="list">${[['Rent a server','Ubuntu 24.04 with 4 cores, 16 GB memory, 500 GB SSD and a public IPv4 address. Open TCP 8080, 8084 and UDP 8084 in the provider\'s firewall.'],
-  ['Paste the setup script','In the provider\'s "user data" or "cloud-init" box, paste rivers-testnet/validator-setup.sh from the Rivers repository. Set VALIDATOR_NAME at the top.'],
-  ['Read the account details','After about 15 minutes, open /var/lib/rivers/VALIDATOR.txt on the server (or the provider\'s serial console). It shows the validator account address and its 12 words. Store the words offline.'],
-  ['Fund and stake','Send 2 RVRB to the account for fees. Then stake '+fmt(lvRv(vpar().minValidatorJoiningStake||0))+' RVRB to it on the Join page, from your own wallet or from delegators.'],
-  ['Join','The script registers the candidate and requests to join once the stake is in place. The validator starts signing at the next epoch.']].map((s,i)=>'<div class="li"><span class="chk">'+(i+1)+'</span><span><b style="font-size:.86rem">'+s[0]+'</b><br><span class="muted" style="font-size:.78rem">'+s[1]+'</span></span></div>').join('')}</div></div>
- <div class="card"><div class="ch"><h2>Network details for the script</h2></div><div class="kv"><div><span>RPC</span><span class="mono" style="font-size:.74rem">${esc(rpc)}</span></div><div><span>Genesis and seed peers</span><span class="mono" style="font-size:.74rem">${esc(ix)}/network/genesis.blob</span></div><div><span>Chain</span><span class="mono" style="font-size:.74rem">${esc(LV.chainId||'—')}</span></div></div>
- <p class="rvnote">The testnet in the GitHub codespace forwards web traffic only, so outside validators cannot reach its validators yet. Validators join once the Rivers network runs on public servers; the same script then works without changes.</p></div>`;}
+/* ---------- Launch a validator: no command line ----------
+   The page makes the validator account in the browser (the owner writes down its 12 words), fills
+   in the server setup script, and then follows the new validator on chain until it is active.
+   The words and the key exist only in this page's memory; only the address is remembered. */
+const LZ={step:1,name:'',words:null,key:null,addr:null,host:'oracle',status:null,at:0};
+try{const s=JSON.parse(localStorage.getItem('rvLaunch')||'null');if(s&&s.addr){LZ.addr=s.addr;LZ.name=s.name||'';LZ.step=4;}}catch(e){}
+const LZ_HOSTS={
+ oracle:['Oracle Cloud (free)',['Sign in to Oracle Cloud and open Compute, then Instances, then Create instance.','Image: Canonical Ubuntu 24.04. Shape: Ampere (VM.Standard.A1.Flex) with 2 OCPUs and 12 GB memory, the free allowance.','Open Show advanced options, choose Paste cloud-init script, and paste the setup.','Create the instance. In its subnet\'s security list, add ingress rules for TCP 8080, TCP 8081 and UDP 8081, 8082 and 8084 from 0.0.0.0/0.']],
+ google:['Google Cloud',['Open Compute Engine, then VM instances, then Create instance.','Choose Ubuntu 24.04 LTS, at least 4 vCPUs and 16 GB memory, and a 500 GB disk.','Under Advanced options, then Management, paste the setup into Automation (startup script).','Create the VM, then add a firewall rule for TCP 8080, TCP 8081 and UDP 8081, 8082 and 8084.']],
+ aws:['Amazon Web Services',['Open EC2, then Launch instance.','Choose Ubuntu Server 24.04, an instance with at least 4 vCPUs and 16 GB memory, and a 500 GB volume.','In the security group, allow TCP 8080, TCP 8081 and UDP 8081, 8082 and 8084.','Under Advanced details, paste the setup into User data, then launch.']],
+ any:['Any Ubuntu server',['Use Ubuntu 24.04 with 4 cores, 16 GB memory, a 500 GB SSD and a public IPv4 address.','Open TCP 8080, TCP 8081 and UDP 8081, 8082 and 8084 in the provider\'s firewall.','Paste the setup into the provider\'s "user data" or "cloud-init" box when you create the server.','If your provider has no such box, download the setup file and ask your provider\'s support to run it once as root.']],
+};
+const lzClean=v=>String(v||'').replace(/[^A-Za-z0-9 ._-]/g,'').trim().slice(0,40);
+function lzScript(){const faucet=LV_FAUCET?LV_FAUCET.replace(/\/+$/,'')+'/v2/gas':'';const set=(t,k,v)=>t.replace(new RegExp('^'+k+'=".*"$','m'),k+'="'+v+'"');
+ let t=RV_SETUP_SCRIPT;t=set(t,'VALIDATOR_NAME',lzClean(LZ.name)||'rivers-validator');t=set(t,'RIVERS_RPC',LV_RPC);t=set(t,'RIVERS_INDEXER',LV_IDX);t=set(t,'VALIDATOR_ACCOUNT_KEY',LZ.key||'');t=set(t,'RIVERS_FAUCET',faucet);return t;}
+function vdGuide(){const st=(n,t,body)=>'<div class="li lz-step'+(LZ.step===n?' on':'')+(LZ.step>n?' done':'')+'" style="display:block;opacity:'+(LZ.step<n?.45:1)+'"><b style="font-size:.95rem"><span class="chk">'+(LZ.step>n?'✓':n)+'</span> '+t+'</b>'+(LZ.step===n?'<div style="margin-top:12px">'+body+'</div>':'')+'</div>';
+ const hosts=Object.entries(LZ_HOSTS).map(([k,v])=>'<button data-act="lzhost" data-v="'+k+'" class="'+(LZ.host===k?'on':'')+'">'+v[0]+'</button>').join('');
+ const H=LZ_HOSTS[LZ.host];
+ return `<div class="g c2 ais"><div class="card hud"><div class="ch"><div class="ttl"><h2>Launch a validator</h2><span class="sub">Four steps, no command line</span></div></div><div class="list">
+  ${st(1,'Name your validator','<div class="fld"><label for="lzN">Validator name</label><input class="in" id="lzN" maxlength="40" placeholder="Lagos Validator 1" value="'+esc(LZ.name)+'"></div><button class="btn pri" data-act="lzname">Continue</button>')}
+  ${st(2,'Create the validator account',LZ.words?'<p class="fg2" style="font-size:.84rem">Write these 12 words on paper, in order. They control the validator account and its stake. Rivers cannot recover them.</p><div class="lz-words" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0">'+LZ.words.split(' ').map((w,i)=>'<span class="mono" style="padding:7px 9px;border-radius:9px;background:rgba(127,127,127,.1);font-size:.8rem"><span class="muted">'+(i+1)+'</span> '+esc(w)+'</span>').join('')+'</div><label style="display:flex;gap:8px;align-items:center;font-size:.84rem;margin:8px 0"><input type="checkbox" id="lzOk"> I have written the 12 words down</label><button class="btn pri" data-act="lzwords">Continue</button>':'<p class="fg2" style="font-size:.84rem">Your browser makes a new account for the validator. Nothing is sent anywhere.</p><button class="btn pri" data-act="lzmake">Create account</button>')}
+  ${st(3,'Start the server','<div class="seg" style="flex-wrap:wrap">'+hosts+'</div><ol style="margin:12px 0 12px 18px;padding:0;font-size:.84rem;line-height:1.6">'+H[1].map(x=>'<li>'+x+'</li>').join('')+'</ol><div class="btns"><button class="btn pri" data-act="lzcopy">Copy setup</button><button class="btn" data-act="lzdl">Download setup file</button></div><p class="rvnote">The setup contains the validator account key. Paste it only into your own cloud account, and delete the downloaded file afterwards.</p><button class="btn wide" data-act="lzstarted" style="margin-top:10px">I have created the server</button>')}
+  ${st(4,'Watch it come online','<div id="lzS"><div class="empty">Checking the network…</div></div>')}
+ </div></div>
+ <div class="card"><div class="ch"><h2>What you need</h2></div><div class="kv">
+  <div><span>Server</span><span>Ubuntu 24.04, 4 cores, 16 GB memory, 500 GB SSD</span></div>
+  <div><span>Free option</span><span>Oracle Cloud Always Free: 2 ARM cores and 12 GB, which should be enough for the testnet</span></div>
+  <div><span>Stake to join</span><span>${fmt(lvRv(vpar().minValidatorJoiningStake||0))} RVRB, yours or delegated</span></div>
+  <div><span>Fees</span><span>${LV_FAUCET?'Paid by the testnet faucet':'About 2 RVRB in the validator account'}</span></div>
+  <div><span>Time</span><span>About 15 minutes for the server, then the next epoch to join</span></div></div>
+  <div class="sep"></div><div class="ch"><h2>What the setup does</h2></div><div class="list">${['Downloads the Rivers programs and the network\'s genesis file','Makes the validator\'s own signing keys on the server','Opens the validator ports in the server\'s firewall','Starts the node, which restarts by itself after a reboot','Registers the validator as a candidate on chain','Requests to join once enough stake is in place'].map(x=>'<div class="li"><span class="chk">✓</span><span style="font-size:.84rem">'+x+'</span></div>').join('')}</div>
+  ${LZ.step===4?'<div class="sep"></div><button class="btn sm" data-act="lzreset">Launch another validator</button>':''}</div></div>`;}
+async function lzStatus(){const el=$('lzS');if(!el||!LZ.addr)return;if(Date.now()-LZ.at<12000&&LZ.status)return lzPaint();LZ.at=Date.now();
+ let st='waiting';try{const vs=(LV.sys||{}).validators||{};
+  if((V||[]).some(v=>v.addr===LZ.addr))st='active';
+  else{const pend=(vs.pendingActiveValidators&&vs.pendingActiveValidators.contents&&vs.pendingActiveValidators.contents.id)||null;
+   const cid=(vs.validatorCandidates||{}).id;if(cid){const df=(await SSv.listDynamicFields({parent:cid,pageSize:1000,readMask:{paths:['name']}})).response.dynamicFields||[];if(df.some(x=>rvHex(x.name.value)===LZ.addr))st='candidate';}
+   if(st==='waiting'){const b=BigInt((((await SSv.getBalance({owner:LZ.addr,coinType:RVRB_T})).response.balance)||{}).balance||0);if(b>0n)st='funded';}}}catch(e){}
+ LZ.status=st;lzPaint();}
+function lzPaint(){const el=$('lzS');if(!el)return;const steps=[['waiting','Server starting','The server downloads Rivers and makes its keys. This takes about 15 minutes.'],['funded','Account funded','The validator account has RVRB for fees. It registers as a candidate next.'],['candidate','Candidate registered','Stake '+fmt(lvRv(vpar().minValidatorJoiningStake||0))+' RVRB to the validator. It requests to join by itself once the stake is in place.'],['active','Active','The validator is in the committee and signing checkpoints.']];
+ const k=steps.findIndex(s=>s[0]===LZ.status);const h='<p class="mono" style="font-size:.72rem;word-break:break-all">'+esc(LZ.name||'Validator')+' · '+esc(LZ.addr)+'</p>'+steps.map((s,i)=>'<div class="li" style="display:block;opacity:'+(i<=k?1:.45)+'"><b style="font-size:.86rem"><span class="chk">'+(i<k||LZ.status==='active'?'✓':i===k?'•':i+1)+'</span> '+s[1]+'</b>'+(i===k?'<div class="fg2" style="font-size:.8rem;margin-top:4px">'+s[2]+'</div>':'')+'</div>').join('')+(LZ.status==='candidate'?'<div class="btns" style="margin-top:10px"><a class="btn pri" href="#validator-join" data-act="lzstake">Stake to this validator</a></div>':'')+'<p class="rvnote">After joining, sign in to this site with the validator\'s 12 words to set commission and the public profile.</p>';
+ if(el._h!==h){el.innerHTML=h;el._h=h;}}
+Object.assign(LACT,{
+ lzname(){const n=lzClean($('lzN').value);if(n.length<3)return toast('Use at least 3 letters or numbers for the name.',false);LZ.name=n;LZ.step=2;route();},
+ lzmake(){LZ.words=generateMnemonic(bip39en,128);const kp=Ed25519Keypair.deriveKeypair(LZ.words);LZ.key=kp.getSecretKey();LZ.addr=kp.toSuiAddress();route();},
+ lzwords(){if(!$('lzOk').checked)return toast('Write the 12 words down first, then tick the box.',false);LZ.step=3;route();},
+ lzhost(el){LZ.host=el.dataset.v;route();},
+ lzcopy(){navigator.clipboard.writeText(lzScript()).then(()=>toast('Setup copied. Paste it into your server\'s cloud-init box.'),()=>toast('Copy failed. Use Download setup file instead.',false));},
+ lzdl(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lzScript()],{type:'text/x-shellscript'}));a.download='rivers-validator-setup.sh';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);},
+ lzstarted(){LZ.step=4;LZ.words=null;LZ.key=null;try{localStorage.setItem('rvLaunch',JSON.stringify({addr:LZ.addr,name:LZ.name}));}catch(e){}route();},
+ lzstake(){setTimeout(()=>{const a=$('jnA');if(a)a.value=LZ.addr;},300);},
+ lzreset(){try{localStorage.removeItem('rvLaunch');}catch(e){}Object.assign(LZ,{step:1,name:'',words:null,key:null,addr:null,status:null});route();},
+});
 async function vdSign(tx,msg){const e=$('opErr')||$('jnErr');if(e)e.innerHTML='';try{await rvSign(tx,msg);}catch(err){if(e)e.innerHTML='<div class="errbox">'+esc(err.message)+'</div>';else toast(err.message,false);}}
 Object.assign(LACT,{
  vdpick(el){VD.sel=+el.dataset.id;location.hash='validator-overview';},

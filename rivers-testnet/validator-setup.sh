@@ -25,6 +25,10 @@
 VALIDATOR_NAME="my-rivers-validator"
 RIVERS_RPC="https://RPC-ADDRESS-OF-THE-NETWORK"
 RIVERS_INDEXER="https://INDEXER-ADDRESS-OF-THE-NETWORK"
+# Optional. Rivers Validator → Launch fills these in: the validator account key made in the
+# browser (the owner keeps its 12 words), and the testnet faucet that pays the registration fee.
+VALIDATOR_ACCOUNT_KEY=""
+RIVERS_FAUCET=""
 
 set -euo pipefail
 exec > >(tee -a /var/log/rivers-validator-setup.log) 2>&1
@@ -51,6 +55,16 @@ curl -fsSL -o "$DIR/config/genesis.blob" "$RIVERS_INDEXER/network/genesis.blob"
 
 PUBLIC_IP="$(curl -fsSL https://api.ipify.org)"
 
+# Some cloud images (Oracle Cloud's Ubuntu among them) block every port except SSH in the server's
+# own firewall, in addition to the provider's firewall.
+if command -v iptables >/dev/null; then
+  for rule in "tcp 8080" "tcp 8081" "udp 8081" "udp 8082" "udp 8084"; do
+    set -- $rule
+    iptables -C INPUT -p "$1" --dport "$2" -j ACCEPT 2>/dev/null || iptables -I INPUT -p "$1" --dport "$2" -j ACCEPT
+  done
+  command -v netfilter-persistent >/dev/null && netfilter-persistent save || true
+fi
+
 # Client configuration with a new Ed25519 account for the validator.
 if [ ! -f "$CFG" ]; then
   echo "[]" > "$DIR/keys/account.keystore"
@@ -66,9 +80,15 @@ envs:
 active_env: rivers
 active_address: ~
 YAML
-  NEW="$(rivers client --client.config "$CFG" new-address ed25519 --json)"
-  ADDRESS="$(echo "$NEW" | jq -r '.address')"
-  WORDS="$(echo "$NEW" | jq -r '.recoveryPhrase')"
+  if [ -n "$VALIDATOR_ACCOUNT_KEY" ]; then
+    # The owner made this account in Rivers Validator and holds its recovery words.
+    ADDRESS="$(rivers keytool --keystore-path "$DIR/keys/account.keystore" --json import "$VALIDATOR_ACCOUNT_KEY" ed25519 | jq -r '.suiAddress')"
+    WORDS="(kept by the owner, who created this account in Rivers Validator)"
+  else
+    NEW="$(rivers client --client.config "$CFG" new-address ed25519 --json)"
+    ADDRESS="$(echo "$NEW" | jq -r '.address')"
+    WORDS="$(echo "$NEW" | jq -r '.recoveryPhrase')"
+  fi
   rivers client --client.config "$CFG" switch --address "$ADDRESS" >/dev/null
   umask 077
   cat > "$DIR/VALIDATOR.txt" <<TXT
@@ -137,12 +157,19 @@ UNIT
 
 # Registers the candidate once the account can pay fees, then requests to join until the chain
 # accepts it (it needs the stake required to join). Each step runs once.
+echo "$RIVERS_FAUCET" > "$DIR/faucet"
 cat > /usr/local/bin/rivers-join <<'JOIN'
 #!/bin/bash
 DIR=/var/lib/rivers
 CFG=$DIR/client.yaml
+FAUCET="$(cat $DIR/faucet 2>/dev/null)"
+ADDRESS="$(grep '^Address:' $DIR/VALIDATOR.txt | cut -d' ' -f2)"
 while true; do
   if [ ! -f $DIR/.candidate ]; then
+    # On the testnet the faucet pays the registration fee, so no one has to send RVRB by hand.
+    if [ -n "$FAUCET" ] && [ ! -f $DIR/.funded ]; then
+      curl -fsS -X POST -H 'content-type: application/json' -d "{\"FixedAmountRequest\":{\"recipient\":\"$ADDRESS\"}}" "$FAUCET" >/dev/null && touch $DIR/.funded && sleep 10
+    fi
     if (cd $DIR/keys && rivers validator --client.config $CFG become-candidate validator.info) ; then
       touch $DIR/.candidate
       echo "Registered as a candidate $(date -u)"
@@ -178,4 +205,4 @@ UNIT
 systemctl daemon-reload
 systemctl enable --now rivers-node rivers-join
 echo "Rivers validator node running $(date -u). Account: $ADDRESS"
-echo "Next: send 2 RVRB to $ADDRESS for fees, then stake the joining amount to it in Rivers Validator → Join."
+[ -n "$RIVERS_FAUCET" ] && echo "Next: stake the joining amount to $ADDRESS in Rivers Validator → Join." || echo "Next: send 2 RVRB to $ADDRESS for fees, then stake the joining amount to it in Rivers Validator → Join."

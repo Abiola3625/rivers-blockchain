@@ -1,5 +1,18 @@
 # Validator setup
 
+## The easy way: Launch a validator
+
+Rivers Validator has a **Launch a validator** page that needs no command line:
+
+1. Name your validator.
+2. Press **Create account**. Your browser makes the validator account; write its 12 words down.
+3. Pick your provider (Oracle Cloud free tier, Google Cloud, AWS or any Ubuntu server), follow the four steps shown, and paste the setup with **Copy setup**. The page fills in your validator's name, the network addresses, the account key and, on the testnet, the faucet that pays the registration fee.
+4. Press **I have created the server**. The page follows the validator on chain: server starting, account funded, candidate registered, active. When it shows *Candidate registered*, press **Stake to this validator**.
+
+After joining, sign in to Rivers Validator with the validator's 12 words to set commission and the public profile.
+
+## The manual way
+
 The script `rivers-testnet/validator-setup.sh` turns a fresh Ubuntu server into a Rivers validator. It downloads the Rivers release, fetches the genesis file from the indexer, creates the keys, writes the node configuration and installs two services: the node and a join service.
 
 ## Steps
