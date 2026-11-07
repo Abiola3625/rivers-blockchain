@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -9,6 +9,7 @@
 <meta property="og:title" content="Rivers Blockchain">
 <meta property="og:description" content="The Layer 1 blockchain built in Nigeria.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<script src="theme.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -36,9 +37,10 @@
     <a href="#private">Privacy</a>
     <a href="#network">Network</a>
     <a href="#rvrb">RVRB</a>
-    <a href="whitepaper.html">Whitepaper</a>
-    <a href="docs.html">Docs</a>
+    <a href="whitepaper/abstract.html">Whitepaper</a>
+    <a href="docs/introduction.html">Docs</a>
   </nav>
+<button class="theme-btn" id="themeBtn" aria-label="Switch between light and dark"><svg viewBox="0 0 24 24" class="i-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg><svg viewBox="0 0 24 24" class="i-moon"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg></button>
   <a class="pill" data-link="wallet">Open wallet</a>
   <button class="menu-btn" id="menuBtn" aria-label="Menu"><span></span><span></span></button>
 </header>
@@ -52,7 +54,7 @@
     <p class="hero-sub">Rivers is the Layer 1 blockchain for payments, savings and the institutions that move money every day.</p>
     <div class="hero-cta">
       <a class="btn" data-link="wallet">Open Rivers Wallet</a>
-      <a class="btn glass" href="whitepaper.html">Read the whitepaper</a>
+      <a class="btn glass" href="whitepaper/abstract.html">Read the whitepaper</a>
     </div>
     <div class="live" id="live"><span class="dot"></span><span>Testnet block <b id="lvBlock">…</b></span><span><b id="lvAcc">…</b> accounts</span><span><b id="lvTx">…</b> transactions today</span></div>
   </div>
@@ -115,7 +117,7 @@
       <div><b>10,000</b><span>RVRB to run a validator</span></div>
       <div><b>Any amount</b><span>to stake with one</span></div>
     </div>
-    <a class="link" href="docs.html#validators">Run a validator</a>
+    <a class="link" href="docs/validator-setup.html">Run a validator</a>
   </div>
 </section>
 
@@ -191,11 +193,11 @@
   <h2 class="end-title"><span>Start</span> <span>flowing.</span></h2>
   <div class="hero-cta center">
     <a class="btn" data-link="wallet">Open Rivers Wallet</a>
-    <a class="btn glass" href="docs.html">Read the docs</a>
+    <a class="btn glass" href="docs/introduction.html">Read the docs</a>
   </div>
   <div class="doors">
-    <a href="whitepaper.html"><b>Whitepaper</b><span>How Rivers works, the token, security and the roadmap.</span></a>
-    <a href="docs.html"><b>Documentation</b><span>Wallet, validators, Connect, Move packages and the indexer API.</span></a>
+    <a href="whitepaper/abstract.html"><b>Whitepaper</b><span>How Rivers works, the token, security and the roadmap.</span></a>
+    <a href="docs/introduction.html"><b>Documentation</b><span>Wallet, validators, Connect, Move packages and the indexer API.</span></a>
     <a href="https://github.com/Abiola3625/rivers-blockchain" rel="noopener"><b>Source code</b><span>The chain, the apps and the packages, open on GitHub.</span></a>
   </div>
 </section>
@@ -204,7 +206,7 @@
 <footer class="foot">
   <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg><span>Rivers Blockchain</span></div>
   <p>Built in Nigeria. Rivers is on testnet: test tokens have no value and the network may be reset.</p>
-  <nav aria-label="Products"><a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="whitepaper.html">Whitepaper</a><a href="docs.html">Docs</a></nav>
+  <nav aria-label="Products"><a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="whitepaper/abstract.html">Whitepaper</a><a href="docs/introduction.html">Docs</a></nav>
 </footer>
 <script src="config.js"></script>
 <script src="main.js" type="module"></script>

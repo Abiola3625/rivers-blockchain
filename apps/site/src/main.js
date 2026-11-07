@@ -249,6 +249,30 @@ globe.scale.setScalar(0.001);
 const globeMats = [];
 globe.traverse((o) => { if (o.material) { o.material.transparent = true; globeMats.push([o.material, o.material.opacity ?? 1]); } });
 
+/* ================================================================== light and dark */
+// On a light page, glowing additive light would vanish, so the scene switches to normal blending,
+// darker greens and no bloom.
+const INK = new THREE.Color('#0B2117'), DEEP_L = new THREE.Color('#007A49');
+const additive = [];
+scene.traverse((o) => { const ms = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; ms.forEach((m) => { if (m.blending === THREE.AdditiveBlending) additive.push(m); }); });
+function applyTheme(t) {
+  const light = t === 'light';
+  scene.background = new THREE.Color(light ? '#F3FAF6' : '#020d08');
+  scene.fog.color = scene.background.clone();
+  bloom.enabled = !light;
+  additive.forEach((m) => { m.blending = light ? THREE.NormalBlending : THREE.AdditiveBlending; m.needsUpdate = true; });
+  riverMats.forEach((m) => { const c = m.uniforms.color.value; if (c === WHITE || c === INK) m.uniforms.color.value = light ? INK : WHITE; else m.uniforms.color.value = light ? DEEP_L : GREEN; });
+  sprayMat.color.set(light ? '#0a6b42' : '#ffffff');
+  dustMat.color.set(light ? '#0a6b42' : '#ffffff');
+  core.material.color.set(light ? '#00915A' : '#c8ffe6');
+  // Tone mapping would grey the light background, so the light theme renders colors as they are.
+  renderer.toneMapping = light ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = light ? 1 : 1.05;
+  additive.forEach((m) => { m.needsUpdate = true; });
+}
+applyTheme(document.documentElement.getAttribute('data-theme'));
+addEventListener('rvtheme', (e) => applyTheme(e.detail));
+
 /* ================================================================== scene state */
 // Each section sets weights; the frame loop eases toward them.
 const W = { rivers: 0, coin: 0, dust: 0, globe: 0, cx: 0, cy: 0, cz: 16, gx: small ? 0 : 3.6, gy: small ? 3.3 : 0, speed: 1 };
