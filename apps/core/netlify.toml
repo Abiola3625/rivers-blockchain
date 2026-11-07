@@ -1,0 +1,7 @@
+# Rivers Core. In Netlify, set the base directory to apps/core.
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

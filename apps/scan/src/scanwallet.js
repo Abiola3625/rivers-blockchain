@@ -80,4 +80,4 @@ Object.assign(LACT,{
 });
 setInterval(()=>{if(WAL.kp)walRefresh();},15000);
 // Links to the standalone wallet app open the wallet sheet inside Scan.
-document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#wallet"]');if(!a)return;e.preventDefault();if(!a.dataset.act)walSheet();},true);
+document.addEventListener('click',e=>{if(typeof RV_APP!=='undefined')return;const a=e.target.closest('a[href^="#wallet"]');if(!a)return;e.preventDefault();if(!a.dataset.act)walSheet();},true);

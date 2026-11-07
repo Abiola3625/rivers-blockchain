@@ -151,9 +151,27 @@ dex_setup() {
   return 1
 }
 
+# Installs a newer release of the rivers program when the build workflow has published one. The chain
+# data is kept; only the program is replaced and the node restarts.
+update_bin() {
+  local tag
+  tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
+  [ -n "$tag" ] || return 0
+  [ "$(cat "$DATA/bin/version" 2>/dev/null)" = "$tag" ] && return 0
+  if [ -f "$DATA/bin/version" ] || [ "${1:-}" = force ]; then
+    curl -fsSL -o /tmp/rivers-new.tgz "https://github.com/$REPO/releases/download/$tag/rivers-linux-$(uname -m).tar.gz" || return 0
+    mkdir -p /tmp/rivers-new && tar -xzf /tmp/rivers-new.tgz -C /tmp/rivers-new || return 0
+    pkill -f "rivers start" >/dev/null 2>&1 && sleep 5
+    install -m 755 /tmp/rivers-new/rivers "$BIN"
+    echo "Installed rivers $tag"
+  fi
+  echo "$tag" > "$DATA/bin/version"
+}
+
 start() {
   git pull --ff-only >/dev/null 2>&1 || true
   [ -x "$BIN" ] || install
+  update_bin force
   if ! pgrep -f "rivers start" >/dev/null; then
     RUST_LOG=warn nohup "$BIN" start --network.config "$NET" --with-faucet=0.0.0.0:9123 >>"$LOG" 2>&1 &
   fi

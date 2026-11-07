@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS swap(digest TEXT, seq INTEGER, pool TEXT, cp INTEGER,
 CREATE INDEX IF NOT EXISTS swap_pool ON swap(pool, cp DESC);
 CREATE TABLE IF NOT EXISTS liquidity(digest TEXT, seq INTEGER, pool TEXT, cp INTEGER, ts INTEGER, added INTEGER, amount_a INTEGER,
   amount_b INTEGER, lp INTEGER, provider TEXT, PRIMARY KEY(digest, seq));
+CREATE TABLE IF NOT EXISTS app_event(digest TEXT, seq INTEGER, cp INTEGER, ts INTEGER, pkg TEXT, module TEXT, name TEXT, sender TEXT,
+  json TEXT, PRIMARY KEY(digest, seq));
+CREATE INDEX IF NOT EXISTS app_event_name ON app_event(module, name, cp DESC);
 CREATE TABLE IF NOT EXISTS epoch(epoch INTEGER PRIMARY KEY, start_ts INTEGER, first_cp INTEGER, total_stake INTEGER, rgp INTEGER);
 CREATE TABLE IF NOT EXISTS val_epoch(epoch INTEGER, addr TEXT, name TEXT, pool TEXT, stake INTEGER, rewards_pool INTEGER,
   pool_tokens INTEGER, commission INTEGER, PRIMARY KEY(epoch, addr));
@@ -119,10 +122,18 @@ const qPoolRes = db.prepare('UPDATE pool SET reserve_a=?, reserve_b=? WHERE id=?
 const qSwap = db.prepare('INSERT OR IGNORE INTO swap VALUES(?,?,?,?,?,?,?,?,?,?,?)');
 const qLiq = db.prepare('INSERT OR IGNORE INTO liquidity VALUES(?,?,?,?,?,?,?,?,?,?)');
 
+// Rivers Connect (network) and vesting events are stored as JSON for the Connect and Core interfaces.
+const qAppEv = db.prepare('INSERT OR IGNORE INTO app_event VALUES(?,?,?,?,?,?,?,?,?)');
+const APP_MODULES = new Set(['network', 'vesting']);
 function storeEvents(tx, seq, ts) {
   const evs = (tx.events && tx.events.events) || [];
   evs.forEach((e, i) => {
     const t = e.eventType || '';
+    const parts = t.split('<')[0].split('::');
+    if (APP_MODULES.has(parts[1])) {
+      qAppEv.run(tx.digest, i, seq, ts, parts[0], parts[1], parts[2], tx.transaction && tx.transaction.sender, JSON.stringify(plain(e.json) || {}));
+      return;
+    }
     if (!/::pool::(PoolCreated|Swapped|LiquidityChanged)$/.test(t)) return;
     const pkg = t.split('::')[0], j = plain(e.json) || {};
     if (t.endsWith('::PoolCreated')) qPool.run(j.pool, pkg, typeOf(j.type_a), typeOf(j.type_b), seq, ts, j.creator, BigInt(j.amount_a), BigInt(j.amount_b));
@@ -373,6 +384,17 @@ function pools() {
 
 const routes = {
   '/config': () => ({ dex: dexConfig() }),
+  // Events of one module and name, newest first. `addr` keeps events that mention the address.
+  '/events': (q) => {
+    const c = dexConfig() || {};
+    const module = q.get('module'), name = q.get('name');
+    const pkg = module === 'network' ? c.connect && c.connect.package : module === 'vesting' ? c.vesting && c.vesting.package : null;
+    const limit = Math.min(500, Number(q.get('limit') || 100));
+    const a = q.get('addr') ? norm(q.get('addr')) : null;
+    const rows = db.prepare(`SELECT digest, cp, ts, pkg, name, sender, json FROM app_event WHERE module=? ${name ? 'AND name=?' : ''} ${pkg ? 'AND pkg=?' : ''}
+      ${a ? 'AND (sender=? OR json LIKE ?)' : ''} ORDER BY cp DESC, seq DESC LIMIT ?`).all(...[module, name, pkg].filter(Boolean), ...(a ? [a, '%' + a + '%'] : []), limit);
+    return rows.map((r) => ({ ...r, json: JSON.parse(r.json) }));
+  },
   '/dex/pools': () => pools(),
   '/tokens': () => db.prepare(`SELECT ${TOK_COLS} FROM token t ORDER BY holders DESC, t.first_cp`).all(),
   '/account-tokens': (q) => {

@@ -14,6 +14,8 @@ import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction, coinWithBalance } from '@mysten/sui/transactions';
 import bytecode from './dex-bytecode.json' with { type: 'json' };
+import connectBytecode from './connect-bytecode.json' with { type: 'json' };
+import vestingBytecode from './vesting-bytecode.json' with { type: 'json' };
 
 const RPC = process.env.RIVERS_RPC || 'http://127.0.0.1:9000';
 const FAUCET = process.env.RIVERS_FAUCET || 'http://127.0.0.1:9123';
@@ -21,6 +23,9 @@ const CONFIG = process.env.RIVERS_DEX_CONFIG || './dex.json';
 const KEY = process.env.RIVERS_DEX_KEY || './dex-key.txt';
 const P_RVRB = Number(process.env.RIVERS_PRICE_RVRB_USDS || 1);
 const P_NGN = Number(process.env.RIVERS_PRICE_USDS_NGNS || 1500);
+// Rivers Core admin. It receives the Rivers Connect operator capability and every upgrade capability.
+// The default is the foundation-1 genesis wallet, whose recovery phrase only the founders hold.
+const ADMIN = process.env.RIVERS_ADMIN || '0x07a8281075e73de243207fc153ef50b49639b1ad2248a6948c1c24d4deb2c2e2';
 const RVRB = '0x2::sui::SUI';
 // RVRB placed in pools. The publisher collects it from the faucet, 50 RVRB per request.
 const SEED_RVRB_USDS = 1000, SEED_RVRB_NGNS = 200, SEED_USDS_NGNS = 100000;
@@ -66,6 +71,17 @@ async function fund(rvrb) {
     try {
       const r = await fetch(FAUCET + '/v2/gas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ FixedAmountRequest: { recipient: me } }), signal: AbortSignal.timeout(30000) });
       if (!r.ok) { log('faucet', r.status); await sleep(5000); }
+      else {
+        // An empty faucet answers "Success" without coins. Rivers Core can then send RVRB to this
+        // address directly, which this loop picks up.
+        const j = await r.json().catch(() => ({}));
+        if (!j.coins_sent || !j.coins_sent.length) {
+          log('The faucet is empty. Waiting for', rvrb, 'RVRB at', me, '(Rivers Core → Services → Fund setup).');
+          cfg.waitingFor = { address: me, rvrb };
+          save();
+          await sleep(60000);
+        }
+      }
     } catch (e) {
       log('faucet', e.cause ? e.cause.code || e.cause.message : e.message);
       await sleep(5000);
@@ -76,11 +92,38 @@ async function fund(rvrb) {
 
 async function main() {
   log('Rivers DEX setup as', me);
+  cfg.admin = ADMIN;
+  if (!cfg.vesting) {
+    await fund(10);
+    const tx = new Transaction();
+    const [up] = tx.publish({ modules: vestingBytecode.modules, dependencies: vestingBytecode.dependencies });
+    tx.transferObjects([up], ADMIN);
+    const t = await exec(tx, 'publish vesting');
+    cfg.vesting = { package: Object.keys(t.objectTypes).find((k) => t.objectTypes[k] === 'package'), digest: t.digest };
+    save();
+  }
+  if (!cfg.connect) {
+    await fund(10);
+    const tx = new Transaction();
+    const [up] = tx.publish({ modules: connectBytecode.modules, dependencies: connectBytecode.dependencies });
+    tx.transferObjects([up], ADMIN);
+    const t = await exec(tx, 'publish connect');
+    const ty = t.objectTypes;
+    const pkg = Object.keys(ty).find((k) => ty[k] === 'package');
+    const cap = Object.keys(ty).find((k) => ty[k].endsWith('::network::OperatorCap'));
+    cfg.connect = { package: pkg, network: Object.keys(ty).find((k) => ty[k].endsWith('::network::Network')), digest: t.digest };
+    save();
+    const tx2 = new Transaction();
+    tx2.transferObjects([tx2.object(cap)], ADMIN);
+    await exec(tx2, 'hand Connect operator capability to the admin');
+    cfg.connect.operatorCapOwner = ADMIN;
+    save();
+  }
   if (!cfg.package) {
     await fund(SEED_RVRB_USDS + SEED_RVRB_NGNS + 30);
     const tx = new Transaction();
     const [up] = tx.publish({ modules: bytecode.modules, dependencies: bytecode.dependencies });
-    tx.transferObjects([up], me);
+    tx.transferObjects([up], ADMIN);
     const t = await exec(tx, 'publish');
     const ty = t.objectTypes;
     const find = (s) => Object.keys(ty).find((k) => ty[k].includes(s));
@@ -119,6 +162,7 @@ async function main() {
     save();
   }
   cfg.ready = true;
+  delete cfg.waitingFor;
   save();
   log('Rivers DEX ready', JSON.stringify(cfg.pools));
 }

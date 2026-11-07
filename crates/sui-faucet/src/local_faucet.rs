@@ -28,6 +28,8 @@ use sui_sdk::wallet_context::WalletContext;
 
 const GAS_BUDGET: u64 = 10_000_000;
 const NUM_RETRIES: u8 = 2;
+/// The faucet pays with up to this many of its coins at once, so they merge into one.
+const MAX_GAS_COINS: usize = 100;
 
 /// On a freshly created `--force-regenesis` network the genesis coin objects may not yet be
 /// readable the instant the cluster reports started — especially on slow or contended storage —
@@ -90,15 +92,33 @@ impl LocalFaucet {
 
         let ptb = ptb.finish();
 
-        let coin_id = self.coin_id.lock().await;
-        let coin_id_ref = self
+        let mut coin_id = self.coin_id.lock().await;
+        // Rivers: pay with every coin the faucet holds, largest first. The coins merge into the first
+        // one, so RVRB sent to the faucet address after startup is used as well, and the faucet does
+        // not stop when the coin it found at startup runs low.
+        let mut coins = self
             .wallet
-            .get_object_ref(*coin_id)
+            .gas_objects(self.active_address)
             .await
-            .map_err(|e| FaucetError::internal(format!("Failed to get object ref: {}", e)))?;
+            .map_err(|e| FaucetError::internal(format!("Failed to list faucet coins: {}", e)))?;
+        coins.sort_by(|a, b| b.0.cmp(&a.0));
+        let available: u64 = coins.iter().take(MAX_GAS_COINS).map(|c| c.0).sum();
+        let needed = self.coin_amount * self.num_coins as u64 + GAS_BUDGET;
+        if available < needed {
+            return Err(FaucetError::internal(format!(
+                "The faucet holds {} drops and needs {} for one request",
+                available, needed
+            )));
+        }
+        let gas: Vec<_> = coins
+            .iter()
+            .take(MAX_GAS_COINS)
+            .map(|(_, o)| o.compute_object_reference())
+            .collect();
+        *coin_id = gas[0].0;
         let tx_data = TransactionData::new_programmable(
             self.active_address,
-            vec![coin_id_ref],
+            gas,
             ptb,
             GAS_BUDGET,
             gas_price,
@@ -109,6 +129,12 @@ impl LocalFaucet {
             .await
             .map_err(FaucetError::internal)?;
 
+        if !tx.effects.status().is_ok() {
+            return Err(FaucetError::internal(format!(
+                "Faucet transaction failed: {:?}",
+                tx.effects.status()
+            )));
+        }
         let coins: Vec<CoinInfo> = tx
             .effects
             .created()
