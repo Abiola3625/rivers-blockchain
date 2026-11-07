@@ -34,7 +34,7 @@ function cnIso(){const m=CN.me;const to=$('pyTo')&&$('pyTo').value;const t=CN.n&
 const ISUBS=[['overview','Overview',IC.home],['payments','Payments',IC.list],['liquidity','Liquidity',IC.coins],['compliance','Compliance',IC.shield],['developers','Developers',IC.code]];
 VIEWS.institutions={subs:ISUBS,
  build(sub){
-  if(sub==='developers')return cnDev();
+  if(sub==='developers'){if(!RVC)rvConfig().then(()=>{if(CUR.sub==='developers')route();});return cnDev();}
   if(!WAL.kp)return rvGate('Rivers Connect','Rivers Connect is for banks and payment firms admitted to the Rivers network. Sign in with your institution wallet.','Create an institution wallet');
   if(!CN.loaded){CN.loaded=true;cnLoad().then(route);return '<div class="empty">Checking your institution…</div>';}
   if(!RVC||!RVC.connect)return lvSoonPage('Rivers Connect','Rivers Connect is not published on this testnet yet. Rivers Core publishes it during the service setup.');
