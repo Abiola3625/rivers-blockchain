@@ -54,14 +54,16 @@ jobs:
           CARGO_PROFILE_RELEASE_DEBUG: "0"
           CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: "off"
           CARGO_PROFILE_RELEASE_STRIP: "symbols"
-        run: cargo build --release --bin sui --bin sui-node
+        run: cargo build --release --bin sui --bin sui-node --bin sui-bridge --bin sui-bridge-cli
 
       - name: Package
         run: |
           mkdir dist
           cp target/release/sui dist/rivers
           cp target/release/sui-node dist/rivers-node
-          tar -C dist -czf rivers-linux-${{ matrix.arch }}.tar.gz rivers rivers-node
+          cp target/release/sui-bridge dist/rivers-bridge
+          cp target/release/sui-bridge-cli dist/rivers-bridge-cli
+          tar -C dist -czf rivers-linux-${{ matrix.arch }}.tar.gz rivers rivers-node rivers-bridge rivers-bridge-cli
           sha256sum rivers-linux-${{ matrix.arch }}.tar.gz > rivers-linux-${{ matrix.arch }}.tar.gz.sha256
           ls -lh rivers-linux-*
 
