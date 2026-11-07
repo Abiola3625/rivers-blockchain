@@ -5,7 +5,7 @@
   "description": "Rivers indexer: accounts, activity history and validator rewards for Rivers Scan",
   "type": "module",
   "scripts": {
-    "build": "esbuild indexer.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-indexer.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild dex-setup.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-dex-setup.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild keeper.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-keeper.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
+    "build": "esbuild indexer.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-indexer.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild dex-setup.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-dex-setup.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild keeper.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-keeper.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" && esbuild bridge.mjs --bundle --platform=node --format=esm --target=node22 --outfile=dist/rivers-bridge.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\"",
     "start": "node dist/rivers-indexer.mjs"
   },
   "dependencies": {
