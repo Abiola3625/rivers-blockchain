@@ -1,0 +1,17 @@
+{
+  "name": "rivers-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Rivers Blockchain website: products, whitepaper and documentation",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "gsap": "3.12.5",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

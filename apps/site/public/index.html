@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rivers Blockchain</title>
+<meta name="description" content="Rivers is a Layer 1 blockchain built in Nigeria. Pay, save, borrow and build with RVRB, and connect banks to one shared ledger.">
+<meta name="theme-color" content="#03140D">
+<meta property="og:title" content="Rivers Blockchain">
+<meta property="og:description" content="A Layer 1 blockchain built in Nigeria.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@300;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="home">
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="./" aria-label="Rivers home"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers</span></a>
+  <nav class="nav" aria-label="Main">
+    <a href="#chain">Chain</a>
+    <a href="#rvrb">RVRB</a>
+    <a href="#products">Products</a>
+    <a href="whitepaper.html">Whitepaper</a>
+    <a href="docs.html">Docs</a>
+  </nav>
+  <a class="btn small" data-link="wallet">Open wallet</a>
+  <button class="menu-btn" id="menuBtn" aria-label="Menu"><span></span><span></span></button>
+</header>
+
+<main>
+<section id="hero" data-shape="0">
+  <div class="hero-in">
+    <p class="kicker">Built in Nigeria</p>
+    <h1 data-split>Three rivers become one chain</h1>
+    <p class="lede">Rivers is a Layer 1 blockchain for payments, savings and the banks that move naira every day. Send RVRB in seconds, swap to naira and dollar stablecoins, and build on Move.</p>
+    <div class="cta">
+      <a class="btn" data-link="wallet">Open Rivers Wallet</a>
+      <a class="btn ghost" href="whitepaper.html">Read the whitepaper</a>
+    </div>
+  </div>
+  <div class="live" id="live" aria-live="polite">
+    <span class="dot"></span>
+    <span>Testnet block <b id="lvBlock">…</b></span>
+    <span><b id="lvAcc">…</b> accounts</span>
+    <span><b id="lvTx">…</b> transactions today</span>
+  </div>
+  <div class="scroll-cue" aria-hidden="true"><span></span></div>
+</section>
+
+<section id="chain" class="story" data-shape="1">
+  <div class="copy">
+    <h2 data-split>Every block, settled by many hands</h2>
+    <p data-rise>Rivers runs the Sui engine: Move smart contracts, an object model that lets unrelated payments execute side by side, and Mysticeti consensus among a committee of staked validators. No single company can rewrite the ledger.</p>
+    <dl class="facts" data-rise>
+      <div><dt>Validators at most</dt><dd data-count="150">150</dd></div>
+      <div><dt>Stake to join, RVRB</dt><dd data-count="10000">10,000</dd></div>
+      <div><dt>Hours in an epoch</dt><dd data-count="24">24</dd></div>
+    </dl>
+    <a class="link" href="docs.html#validators" data-rise>Run a validator</a>
+  </div>
+</section>
+
+<section id="rvrb" class="story right" data-shape="2">
+  <div class="copy">
+    <h2 data-split>Twenty-one million RVRB, never more</h2>
+    <p data-rise>Ten million RVRB exist from day one. The other eleven million are paid to stakers, a little each day, for fifty years. Every five years the daily reward halves, so new supply slows as the network grows.</p>
+    <figure class="supply" data-rise>
+      <svg viewBox="0 0 640 280" role="img" aria-labelledby="supT">
+        <title id="supT">RVRB supply grows from 10 million at launch to 21 million by year 50</title>
+        <g class="grid">
+          <line x1="40" y1="20" x2="640" y2="20"/><line x1="40" y1="130" x2="640" y2="130"/><line x1="40" y1="240" x2="640" y2="240"/>
+          <text x="0" y="24">21M</text><text x="0" y="134">15M</text><text x="0" y="244">9M</text>
+          <text x="40" y="270">Launch</text><text x="160" y="270">10</text><text x="280" y="270">20</text><text x="400" y="270">30</text><text x="520" y="270">40</text><text x="606" y="270">50 yrs</text>
+        </g>
+        <path id="supplyLine" transform="translate(40,20)" d="M0.0,220.0 L12.0,198.0 L24.0,176.0 L36.0,153.9 L48.0,131.9 L60.0,109.9 L72.0,98.9 L84.0,87.9 L96.0,76.9 L108.0,65.8 L120.0,54.8 L132.0,49.3 L144.0,43.8 L156.0,38.3 L168.0,32.8 L180.0,27.3 L192.0,24.6 L204.0,21.8 L216.0,19.1 L228.0,16.3 L240.0,13.5 L252.0,12.2 L264.0,10.8 L276.0,9.4 L288.0,8.0 L300.0,6.7 L312.0,6.0 L324.0,5.3 L336.0,4.6 L348.0,3.9 L360.0,3.2 L372.0,2.9 L384.0,2.5 L396.0,2.2 L408.0,1.8 L420.0,1.5 L432.0,1.3 L444.0,1.2 L456.0,1.0 L468.0,0.8 L480.0,0.6 L492.0,0.6 L504.0,0.5 L516.0,0.4 L528.0,0.3 L540.0,0.2 L552.0,0.2 L564.0,0.1 L576.0,0.1 L588.0,0.0 L600.0,0.0"/>
+      </svg>
+      <figcaption>Supply in circulation and staked, by year. Era one pays 5,505,376 RVRB; each later era pays half.</figcaption>
+    </figure>
+    <table class="alloc" data-rise>
+      <caption>The 10,000,000 RVRB at launch</caption>
+      <tbody>
+        <tr><th>Ecosystem and grants</th><td>4,000,000</td><td><i style="--w:40%"></i></td></tr>
+        <tr><th>Foundation and developers</th><td>2,000,000</td><td><i style="--w:20%"></i></td></tr>
+        <tr><th>Community</th><td>2,000,000</td><td><i style="--w:20%"></i></td></tr>
+        <tr><th>Early backers</th><td>1,000,000</td><td><i style="--w:10%"></i></td></tr>
+        <tr><th>Validator bootstrap</th><td>600,000</td><td><i style="--w:6%"></i></td></tr>
+        <tr><th>DEX liquidity</th><td>400,000</td><td><i style="--w:4%"></i></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="nigeria" class="story" data-shape="3">
+  <div class="copy">
+    <h2 data-split>Built at home, open to the world</h2>
+    <p data-rise>Rivers is designed and built in Nigeria. Naira and dollar stablecoins sit next to RVRB in every wallet. Banks and payment firms join Rivers Connect, send ISO 20022 payments to each other, and settle on one shared ledger instead of waiting on batch files.</p>
+    <ul class="ticks" data-rise>
+      <li>NGNs and USDs test stablecoins with a built-in exchange</li>
+      <li>Per-institution limits, suspension and an on-chain audit trail</li>
+      <li>Prices in naira across the wallet and the explorer</li>
+    </ul>
+    <a class="link" href="docs.html#connect" data-rise>Connect your institution</a>
+  </div>
+</section>
+
+<section id="products" data-shape="4">
+  <div class="rail-head">
+    <h2 data-split>Five doors into one network</h2>
+    <p>Each product is its own site with its own address. They read the same chain, so a payment sent in the wallet shows in Scan a moment later.</p>
+  </div>
+  <div class="rail">
+    <article class="panel p-wallet">
+      <h3>Rivers Wallet</h3>
+      <p>Your keys stay on your device. Hold RVRB and stablecoins, swap, stake with a validator, lend and borrow, and claim vested tokens.</p>
+      <ul><li>Twelve recovery words, encrypted with your password</li><li>Swap, pools and lending in one place</li><li>Locks itself after fifteen minutes</li></ul>
+      <a class="btn" data-link="wallet">Open the wallet</a>
+    </article>
+    <article class="panel p-scan">
+      <h3>Rivers Scan</h3>
+      <p>Watch every transaction land in real time. Look up any address, token, validator or pool, and launch your own token in Token Studio.</p>
+      <ul><li>Live transaction view</li><li>Holders, rich list and daily charts</li><li>Token Studio with vesting and a starting pool</li></ul>
+      <a class="btn" data-link="explorer">Open Scan</a>
+    </article>
+    <article class="panel p-connect">
+      <h3>Rivers Connect</h3>
+      <p>For banks and payment firms. Pay another member in naira stablecoin, upload a batch file, and export pacs.008 messages for your core banking system.</p>
+      <ul><li>Single and batch payments</li><li>Liquidity conversion</li><li>Compliance view and developer keys</li></ul>
+      <a class="btn" data-link="institutions">Open Connect</a>
+    </article>
+    <article class="panel p-validator">
+      <h3>Rivers Validator</h3>
+      <p>Run a node, join the committee and earn a share of each day's rewards. Set your commission and see your delegators.</p>
+      <ul><li>One-command server setup</li><li>Rewards and signing record</li><li>Join, update and leave</li></ul>
+      <a class="btn" data-link="validator">Open Validator</a>
+    </article>
+    <article class="panel p-core">
+      <h3>Rivers Core</h3>
+      <p>The control room for the Rivers foundation. Every action is signed on chain by the administrator key, so the record is public.</p>
+      <ul><li>Health, alerts and invariant checks</li><li>Admit and limit institutions</li><li>Investor vesting and market pauses</li></ul>
+      <a class="btn ghost" data-link="console">Open Core</a>
+    </article>
+    <article class="panel p-next">
+      <h3>Being built now</h3>
+      <p>Shielded payments that hide amounts and parties with zero-knowledge proofs, and a bridge to Ethereum.</p>
+      <a class="btn ghost" href="whitepaper.html#roadmap">See the roadmap</a>
+    </article>
+  </div>
+</section>
+
+<section id="build" class="closing">
+  <h2 data-split>Read it, run it, build on it</h2>
+  <div class="doors">
+    <a href="whitepaper.html" data-rise><b>Whitepaper</b><span>How Rivers works, the token, security and the roadmap.</span></a>
+    <a href="docs.html" data-rise><b>Documentation</b><span>Wallet, validators, Connect, Move packages and the indexer API.</span></a>
+    <a href="https://github.com/Abiola3625/rivers-blockchain" rel="noopener" data-rise><b>Source code</b><span>The full chain, apps and packages on GitHub.</span></a>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers Blockchain</span></div>
+  <p>Built in Nigeria. Rivers is on testnet: test tokens have no value and the network may be reset.</p>
+  <nav aria-label="Products">
+    <a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="whitepaper.html">Whitepaper</a><a href="docs.html">Docs</a>
+  </nav>
+</footer>
+<script src="config.js"></script>
+<script src="main.js" type="module"></script>
+</body>
+</html>

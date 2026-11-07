@@ -130,7 +130,7 @@ kept 3,494.89 RVRB for investor B.
 | Token Studio | `rivers-packages/token-studio`, `apps/scan/src/scanstudio.js` | Creates a token from a compiled Move template in the browser: fixed, burn only, mintable or capped; optional pause and freeze; optional USDs pool. The package is made immutable and the currency is registered in the coin registry. |
 | Rivers DEX | `rivers-packages/dex`, `rivers-testnet/indexer/dex-setup.mjs`, `apps/scan/src/scandex.js` | Constant-product pools with a 0.30% fee to liquidity providers, LP coins, USDs and NGNs test stablecoins with faucets. Scan has Swap and Pools pages and shows testnet prices, the liquidity map and token rankings. |
 
-Move tests: `rivers move test -e testnet` in `rivers-packages/dex` (5 tests) and
+Move tests: `rivers move test -e testnet` in `rivers-packages/dex` and
 `rivers-packages/vesting` (8 tests).
 
 After changing `rivers-packages/token-studio`, rebuild it and regenerate
@@ -158,13 +158,18 @@ The service setup gives the Rivers Connect operator capability and every package
 to the administrator address (`RIVERS_ADMIN`, by default the foundation-1 genesis wallet). Import
 that wallet in Rivers Core with its recovery words to administer the network.
 
+| Rivers Lend | `rivers-packages/dex/sources/lend.move`, wallet Lend page, Core markets page | Isolated markets (collateral and loan coin per market), share coins for suppliers, kinked interest rate, liquidation with bonus. Prices are pool time-weighted averages (at least 10 minutes, at most 1 hour old); a keeper records a price observation every 2 minutes. |
+| Website | `apps/site` | Public site with the scroll-driven 3D story, links to every product, the whitepaper and the documentation. |
+| Shielded payments (in progress) | `rivers-packages/shield` | Groth16 join-split circuit (2 notes in, 2 out, tree depth 20), Poseidon commitments, nullifiers, encrypted notes and the Move pool that verifies proofs with `sui::groth16`. |
+
+Move tests: `rivers move test -e testnet` in `rivers-packages/dex` (15 tests: pools and lending).
+
 Not built yet, and why:
 
 | Feature | Reason |
 |---|---|
-| Shielded payments and regulator view keys | Need an audited zero-knowledge circuit. |
-| Cross-chain gateway and bridge | Need audited bridge contracts on both chains and independent operators. |
-| Rivers Lend | Needs lending markets and a price oracle that are audited before holding funds. |
+| Cross-chain bridge | In progress next: Ethereum (Sepolia testnet first), built on the Sui native bridge in `bridge/`. Needs a funded Sepolia deployer account. |
+| Shielded payments for mainnet | Need a public trusted setup ceremony with many contributors and an external audit. |
 | NFT collections, transfer fees in Token Studio | Need their own token standards; transfer fees need closed-loop tokens. |
 | Bank settlement to bank accounts | Needs agreements with banks; Connect settles in tokens on chain today. |
 | Validator map and regions | Validators publish no location; needs validators on public servers. |

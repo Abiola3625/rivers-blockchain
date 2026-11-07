@@ -1,15 +1,16 @@
 # Deploying the Rivers interfaces
 
-Each Rivers interface is its own website, built from this repository by Netlify. All five read the
-same testnet, indexer and contracts, and link to each other.
+Each Rivers interface is its own website, built from this repository by Netlify. All of them read the
+same testnet, indexer and contracts, and link to each other. The public website links to all of them.
 
 | Interface | Who it is for | Netlify base directory |
 |---|---|---|
 | Rivers Scan | Everyone: blocks, transactions, tokens, swap, pools, faucet | `apps/scan` (already live) |
-| Rivers Wallet | Users: hold, send, swap, stake, pools, create tokens, vesting claims | `apps/wallet` |
+| Rivers Wallet | Users: hold, send, swap, stake, pools, lend and borrow, vesting claims | `apps/wallet` |
 | Rivers Connect | Banks and payment firms: ISO 20022 payments, batches, liquidity, compliance | `apps/connect` |
 | Rivers Core | Rivers administrators: monitoring, parameters, banks, investors, audit log | `apps/core` |
 | Rivers Validator | Validator operators: signing, stake, rewards, joining, server setup | `apps/validator` |
+| Rivers website | Everyone: the story, products, whitepaper and documentation | `apps/site` |
 
 ## Add one interface on Netlify (repeat for each)
 
@@ -35,7 +36,10 @@ const RV_LINKS={
 };
 ```
 
-Every site rebuilds by itself after the change is pushed.
+Every site rebuilds by itself after the change is pushed. The website reads the same file.
+
+The website shows live testnet numbers from the indexer set in `apps/site/netlify.toml`
+(`RIVERS_INDEXER`). Change it when the testnet moves to its own server.
 
 ## Security
 

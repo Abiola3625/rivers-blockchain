@@ -1,0 +1,10 @@
+# Netlify site for the Rivers website. Set the site's base directory to apps/site.
+# Optional: set RIVERS_INDEXER to the public indexer address to show live testnet numbers.
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # The testnet indexer in the GitHub codespace. Change it when the testnet moves to its own server.
+  RIVERS_INDEXER = "https://psychic-guide-xvpv4rvg4pjhw54-9200.app.github.dev"
