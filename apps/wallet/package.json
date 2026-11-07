@@ -7,9 +7,12 @@
     "build": "node build.mjs"
   },
   "dependencies": {
+    "@mysten/move-bytecode-template": "^0.4.1",
     "@mysten/sui": "^2.39.0",
     "@scure/bip39": "^2.4.0",
-    "@mysten/move-bytecode-template": "^0.4.1"
+    "poseidon-lite": "0.3.0",
+    "snarkjs": "0.7.6",
+    "tweetnacl": "1.0.3"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

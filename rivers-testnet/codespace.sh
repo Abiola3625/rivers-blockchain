@@ -140,7 +140,8 @@ indexer_start() {
 RVRB_PRICE_USDS=1
 USDS_PRICE_NGNS=1500
 dex_setup() {
-  [ -f "$DATA/dex.json" ] && grep -q '"ready": true' "$DATA/dex.json" && return 0
+  # The setup is complete when the last step, the shielded pools, has handed over its capability.
+  [ -f "$DATA/dex.json" ] && grep -q '"ready": true' "$DATA/dex.json" && grep -q '"capHanded": true' "$DATA/dex.json" && return 0
   mkdir -p "$DATA/dex"
   for _ in 1 2 3 4 5; do
     RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \

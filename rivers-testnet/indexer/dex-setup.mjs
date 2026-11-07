@@ -15,6 +15,8 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction, coinWithBalance } from '@mysten/sui/transactions';
 import bytecode from './dex-bytecode.json' with { type: 'json' };
 import connectBytecode from './connect-bytecode.json' with { type: 'json' };
+import shieldBytecode from './shield-bytecode.json' with { type: 'json' };
+import shieldVk from './shield-vk.json' with { type: 'json' };
 import vestingBytecode from './vesting-bytecode.json' with { type: 'json' };
 
 const RPC = process.env.RIVERS_RPC || 'http://127.0.0.1:9000';
@@ -189,6 +191,35 @@ async function main() {
     tx.transferObjects([tx.object(cfg.lendAdminCap)], ADMIN);
     await exec(tx, 'hand Rivers Lend admin capability to the admin');
     cfg.lendAdminHanded = true;
+    save();
+  }
+  // Rivers Shield: shielded pools for RVRB and USDs with the testnet verifying key. The admin
+  // capability (pause deposits, deposit limit) goes to the administrator.
+  if (!cfg.shield) {
+    await fund(10);
+    const tx = new Transaction();
+    const [up] = tx.publish({ modules: shieldBytecode.modules, dependencies: shieldBytecode.dependencies });
+    tx.transferObjects([up], ADMIN);
+    const t = await exec(tx, 'publish shield');
+    const ty = t.objectTypes;
+    cfg.shield = { package: Object.keys(ty).find((k) => ty[k] === 'package'), cap: Object.keys(ty).find((k) => ty[k].endsWith('::shield::ShieldAdminCap')), pools: {}, digest: t.digest };
+    save();
+  }
+  const vk = Uint8Array.from(shieldVk.vk.match(/../g).map((x) => parseInt(x, 16)));
+  const shieldPools = [['RVRB', RVRB, 10000n * 1_000_000_000n], ['USDs', cfg.coins.USDs, 100000n * 1_000_000n]];
+  for (const [name, type, max] of shieldPools) {
+    if (cfg.shield.pools[name]) continue;
+    const tx = new Transaction();
+    tx.moveCall({ target: cfg.shield.package + '::shield::create_pool', typeArguments: [type], arguments: [tx.object(cfg.shield.cap), tx.pure.vector('u8', vk), tx.pure.u64(max)] });
+    const t = await exec(tx, 'create shielded pool ' + name);
+    cfg.shield.pools[name] = { id: Object.keys(t.objectTypes).find((k) => t.objectTypes[k].includes('::shield::Pool<')), type, maxDeposit: String(max) };
+    save();
+  }
+  if (!cfg.shield.capHanded) {
+    const tx = new Transaction();
+    tx.transferObjects([tx.object(cfg.shield.cap)], ADMIN);
+    await exec(tx, 'hand Rivers Shield admin capability to the admin');
+    cfg.shield.capHanded = true;
     save();
   }
   cfg.ready = true;

@@ -1,0 +1,147 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+/// Tests with real Groth16 proofs of circuits/transaction.circom, made with the testnet proving key
+/// by js/shield.mjs and snarkjs: Alice shields 1,000, sends 700 to Bob privately, and Bob unshields
+/// 500 to 0xb0b. The proofs are bound to the pool created in `setup`, so the setup must keep the
+/// same transaction sequence for the pool to get the same id.
+#[test_only]
+module rivers_shield::shield_tests;
+
+use rivers_shield::shield::{Self, Pool, ShieldAdminCap};
+use sui::coin::{Self, Coin};
+use sui::test_scenario::{Self as ts, Scenario};
+
+public struct T has drop {}
+
+const ADMIN: address = @0xAD;
+const VK: vector<u8> = x"{{VK}}";
+
+fun setup(): (Scenario, Pool<T>) {
+    let mut s = ts::begin(ADMIN);
+    shield::init_for_testing(s.ctx());
+    s.next_tx(ADMIN);
+    let cap = s.take_from_sender<ShieldAdminCap>();
+    shield::create_pool<T>(&cap, VK, 1_000_000, s.ctx());
+    s.return_to_sender(cap);
+    s.next_tx(ADMIN);
+    let p = s.take_shared<Pool<T>>();
+    (s, p)
+}
+
+fun finish(s: Scenario, p: Pool<T>) {
+    ts::return_shared(p);
+    s.end();
+}
+
+fun admin_cap(s: &mut Scenario): ShieldAdminCap {
+    s.next_tx(ADMIN);
+    s.take_from_sender<ShieldAdminCap>()
+}
+
+#[test]
+fun shield_send_and_unshield() {
+    let (mut s, mut p) = setup();
+    let empty = shield::current_root(&p);
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    assert!(shield::value(&p) == 1000);
+    assert!(shield::size(&p) == 2);
+    assert!(shield::current_root(&p) == DEPOSIT_ROOT_AFTER);
+    assert!(shield::is_known_root(&p, empty));
+    send_call(&mut s, &mut p, @0x0);
+    assert!(shield::value(&p) == 1000);
+    assert!(shield::size(&p) == 4);
+    assert!(shield::current_root(&p) == SEND_ROOT_AFTER);
+    withdraw_call(&mut s, &mut p, @0xb0b);
+    assert!(shield::value(&p) == 500);
+    assert!(shield::size(&p) == 6);
+    assert!(shield::current_root(&p) == WITHDRAW_ROOT_AFTER);
+    s.next_tx(@0xb0b);
+    let paid = s.take_from_sender<Coin<T>>();
+    assert!(paid.value() == 500);
+    coin::burn_for_testing(paid);
+    finish(s, p);
+}
+
+#[test, expected_failure(abort_code = shield::ENullifierSpent)]
+fun note_cannot_be_spent_twice() {
+    let (mut s, mut p) = setup();
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    send_call(&mut s, &mut p, @0x0);
+    send_call(&mut s, &mut p, @0x0);
+    finish(s, p);
+}
+
+#[test, expected_failure(abort_code = shield::EBadProof)]
+fun recipient_cannot_be_changed() {
+    let (mut s, mut p) = setup();
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    send_call(&mut s, &mut p, @0x0);
+    withdraw_call(&mut s, &mut p, @0xbad);
+    finish(s, p);
+}
+
+#[test, expected_failure(abort_code = shield::EBadProof)]
+fun proof_for_one_pool_fails_in_another() {
+    let (mut s, p) = setup();
+    let cap = admin_cap(&mut s);
+    shield::create_pool<T>(&cap, VK, 1_000_000, s.ctx());
+    s.return_to_sender(cap);
+    s.next_tx(ADMIN);
+    // Take the second pool: the first one is still held by this test.
+    let mut other = s.take_shared<Pool<T>>();
+    assert!(object::id(&other) != object::id(&p));
+    deposit_call(&mut s, &mut other, @0xa11ce);
+    ts::return_shared(other);
+    finish(s, p);
+}
+
+#[test, expected_failure(abort_code = shield::EUnknownRoot)]
+fun root_must_be_known() {
+    let (mut s, mut p) = setup();
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    // This proof was made against the tree after the private send, which has not happened.
+    withdraw_call(&mut s, &mut p, @0xb0b);
+    finish(s, p);
+}
+
+#[test, expected_failure(abort_code = shield::EPaused)]
+fun pause_stops_deposits() {
+    let (mut s, mut p) = setup();
+    let cap = admin_cap(&mut s);
+    shield::set_deposits_paused(&cap, &mut p, true);
+    s.return_to_sender(cap);
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    finish(s, p);
+}
+
+#[test]
+fun withdrawal_works_while_paused() {
+    let (mut s, mut p) = setup();
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    send_call(&mut s, &mut p, @0x0);
+    let cap = admin_cap(&mut s);
+    shield::set_deposits_paused(&cap, &mut p, true);
+    s.return_to_sender(cap);
+    withdraw_call(&mut s, &mut p, @0xb0b);
+    assert!(shield::value(&p) == 500);
+    finish(s, p);
+}
+
+#[test, expected_failure(abort_code = shield::EDepositTooLarge)]
+fun deposit_limit_applies() {
+    let (mut s, mut p) = setup();
+    let cap = admin_cap(&mut s);
+    shield::set_max_deposit(&cap, &mut p, 999);
+    s.return_to_sender(cap);
+    deposit_call(&mut s, &mut p, @0xa11ce);
+    finish(s, p);
+}
+
+#[test]
+fun ext_data_hash_is_below_the_field() {
+    let h = shield::ext_data_hash(object::id_from_address(@0x1), @0x2, 3, 4, &x"0506", &x"07");
+    assert!(h < 21888242871839275222246405745257275088548364400416034343698204186575808495617);
+}
+
+// ---------- calls with the generated proofs ----------

@@ -122,3 +122,26 @@ function dexFill(){if(!dReady())return;const s=CUR.sub;
   if(!document.querySelector('#tkTb tr[data-dex]')&&(EXX.f||'All')!=='Native'&&(EXX.f||'All')!=='Created'&&(EXX.f||'All')!=='Cross-chain'){const rows=[U,N].map(t=>{const m=ST.meta[t]||{};return '<tr class="click" data-dex="1" data-act="sttok" data-id="'+t+'"><td><div style="display:flex;gap:9px;align-items:center">'+stIco(dSym(t),30)+'<div><b>'+esc(dSym(t))+'</b><div class="muted" style="font-size:.72rem">'+esc(m.name||'')+'</div></div></div></td><td>Stablecoin</td><td class="n">'+usdF(dPrice(t))+'</td><td class="n mono">Faucet</td><td class="n">'+(m.decimals||6)+'</td><td class="n">—</td><td>'+featChips(['Testnet','Faucet'])+'</td><td class="n">Rivers DEX</td></tr>';}).join('');
    const first=document.querySelector('#tkTb tr[data-act=lvtok]');if(first)first.insertAdjacentHTML('afterend',rows);else{const tb=$('tkTb');if(tb)tb.insertAdjacentHTML('afterbegin',rows);}
    const sr=document.querySelector('#tkTb .soonrows .soonbadge b');if(sr)sr.textContent='Cross-chain assets';$$('#tkTb .soonrow').forEach(r=>{if(/USDs|NGNs/.test(r.textContent))r.remove();});}};})();
+
+/* ---------- Shielded payments page (live) ----------
+   Shows what the ledger shows about the shielded pools: totals going in and out and the number of
+   notes and private sends. Amounts inside the pools and the parties to private sends are not public. */
+delete LV_SOON_PAGES.privacy;
+const SZ={st:[],at:0};
+function szName(id){const P=DEX.cfg&&DEX.cfg.shield&&DEX.cfg.shield.pools||{};const k=Object.keys(P).find(k=>P[k].id===id);return k?{k,type:P[k].type}:{k:short(id,4),type:null};}
+function szPage(){return `<div class="g c4">${kpi('zk1','Shielded transactions',IC.lock)}${kpi('zk2','Private sends',IC.send)}${kpi('zk3','Notes in pools',IC.cube)}${kpi('zk4','Pools',IC.droplet)}</div>
+ <section class="card"><div class="ch"><div class="ttl"><h2><span class="ico">${IC.lock}</span>Shielded pools</h2><span class="sub">Coins inside a pool are owned through private notes. Only their owners can see them.</span></div><span class="b warn">Testnet</span></div>
+  <div class="tw"><table><thead><tr><th>Pool</th><th class="n">Held</th><th class="n">Shielded in</th><th class="n">Unshielded</th><th class="n">Deposits</th><th class="n">Private sends</th><th class="n">Withdrawals</th><th class="n">Last activity</th></tr></thead><tbody id="zT"><tr><td colspan="8"><div class="empty">Loading…</div></td></tr></tbody></table></div></section>
+ <section class="card"><div class="ch"><h2>What the ledger shows</h2></div><div class="list">${[['Shield','The amount and the address it came from.'],['Private send','A proof, two spent-note markers and two new encrypted notes. Not the amount, the sender or the receiver.'],['Unshield','The amount and the address it goes to, not which notes paid for it.'],['Proofs','Each transaction carries a Groth16 zero-knowledge proof that the chain checks before it moves anything.']].map(x=>'<div class="li" style="display:block"><b>'+x[0]+'</b><div class="fg2" style="font-size:.84rem;margin-top:2px">'+x[1]+'</div></div>').join('')}</div></section>`;}
+async function szLoad(){SZ.at=Date.now();if(!DEX.cfg||!DEX.cfg.shield){try{DEX.cfg=(await idxGet('/config')).dex||DEX.cfg;}catch(e){}}try{SZ.st=await idxGet('/shield/stats');}catch(e){SZ.st=null;}szFill();}
+function szFill(){const t=$('zT');if(!t)return;const S=SZ.st||[];const sum=f=>S.reduce((a,r)=>a+Number(r[f]||0),0);
+ const set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};set('zk1',fmt(sum('txs')));set('zk2',fmt(sum('privateSends')));set('zk3',fmt(sum('notes')));set('zk4',fmt(DEX.cfg&&DEX.cfg.shield?Object.keys(DEX.cfg.shield.pools||{}).length:0));
+ if(SZ.st===null){t.innerHTML='<tr><td colspan="8"><div class="empty">The indexer is not reachable.</div></td></tr>';return;}
+ if(!DEX.cfg||!DEX.cfg.shield){t.innerHTML='<tr><td colspan="8"><div class="empty">Shielded pools are not set up on this network yet.</div></td></tr>';return;}
+ const rows=Object.entries(DEX.cfg.shield.pools||{}).map(([k,p])=>{const r=S.find(x=>x.pool===p.id)||{};const d=dDec(p.type);const q=v=>fmt(stNum(String(v||0),d),2);const held=BigInt(r.deposited||0)-BigInt(r.withdrawn||0);
+  return '<tr><td><b>'+esc(k)+'</b></td><td class="n">'+q(held)+'</td><td class="n">'+q(r.deposited)+'</td><td class="n">'+q(r.withdrawn)+'</td><td class="n">'+fmt(r.deposits||0)+'</td><td class="n">'+fmt(r.privateSends||0)+'</td><td class="n">'+fmt(r.withdrawals||0)+'</td><td class="n muted">'+(r.lastTs?ago(r.lastTs):'—')+'</td></tr>';}).join('');
+ t.innerHTML=rows;}
+(function(){const v=VIEWS.explorer;const b=v.build,a=v.after,u=v.update;
+ v.build=function(s){return s==='privacy'?szPage():b.call(this,s);};
+ v.after=function(s){if(s==='privacy'){szLoad();return;}return a.call(this,s);};
+ v.update=function(s){if(s==='privacy'){if(Date.now()-SZ.at>15000)szLoad();return;}return u.call(this,s);};})();

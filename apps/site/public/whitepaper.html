@@ -176,7 +176,7 @@
     </section>
 
     <section id="privacy">
-      <h2>Shielded payments <span class="status">In development</span></h2>
+      <h2>Shielded payments <span class="status">On testnet</span></h2>
       <p>Shielded payments let a person move value without showing the amount, the sender or the receiver on the public ledger. Coins enter a shielded pool, move inside it as private notes and can leave it to any address.</p>
       <ul>
         <li>Each note is a Poseidon hash commitment to an amount, an owner key and a random value. Commitments are stored in a Merkle tree of depth 20.</li>
@@ -185,6 +185,7 @@
         <li>New notes are encrypted to the receiver's key, so only the receiver can find and spend them.</li>
         <li>The chain verifies proofs with Sui's native Groth16 verifier.</li>
       </ul>
+      <p>On the testnet, the wallet's Private page shields RVRB and USDs, sends them privately to a private address and unshields them. Each proof is made on the user's device. The fee for a private send is paid from the user's public address, so observers can see that the address used the pool, but not the amount or the receiver.</p>
       <p>The proving keys come from a trusted setup. The testnet setup has one contributor. Mainnet needs a public ceremony with many independent contributors, so that no single party can forge proofs.</p>
     </section>
 
@@ -201,7 +202,7 @@
         <li><strong>Public record.</strong> Administrative actions are on-chain transactions, so anyone can see who changed what and when.</li>
         <li><strong>Bounded settings.</strong> Lending parameters are checked against fixed limits on chain, so even the administrator cannot set an unsafe value.</li>
         <li><strong>Separate sites.</strong> Each product is its own site with a strict content security policy, so a fault in one cannot reach another's keys.</li>
-        <li><strong>Audits.</strong> The Rivers packages go through internal review and automated tests. An external audit is planned before mainnet.</li>
+        <li><strong>Audits.</strong> The Rivers packages go through internal review and automated tests; the review is published in the repository as <code>rivers-packages/AUDIT.md</code>. An external audit is planned before mainnet.</li>
       </ul>
     </section>
 
@@ -216,6 +217,7 @@
       <h3>Running on the testnet</h3>
       <ul>
         <li>The Rivers chain with RVRB, the fixed supply and the reward schedule</li>
+        <li>Shielded payments for RVRB and USDs</li>
         <li>Rivers Wallet, Scan, Connect, Validator and Core as separate sites</li>
         <li>Indexer, Token Studio, investor vesting</li>
         <li>Rivers DEX with time-weighted prices, and Rivers Lend</li>
@@ -223,7 +225,7 @@
       </ul>
       <h3>In development</h3>
       <ul>
-        <li>Shielded payments</li>
+        <li>Paying private-send fees from an unrelated address</li>
         <li>Bridge to Ethereum</li>
         <li>Testnet on public servers, so outside validators can join</li>
       </ul>

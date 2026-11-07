@@ -83,6 +83,7 @@
           <tr><td>Pools</td><td>Add liquidity and earn the 0.30% swap fee</td></tr>
           <tr><td>Stake</td><td>Delegate RVRB to a validator and earn a share of each epoch's rewards</td></tr>
           <tr><td>Lend</td><td>Supply coins to earn interest, or lock collateral and borrow</td></tr>
+          <tr><td>Private</td><td>Shield coins, send them to a private address (rvz1…), and unshield them to any public address</td></tr>
           <tr><td>Security</td><td>Show recovery words, change password, set auto-lock time</td></tr>
         </tbody>
       </table>
@@ -177,7 +178,7 @@ cargo build --bin sui
           <tr><td><code>rivers_dex</code></td><td><code>usds</code>, <code>ngns</code></td><td>Test stablecoins with a faucet</td></tr>
           <tr><td><code>rivers_connect</code></td><td><code>network</code></td><td>Institution membership, limits and payments</td></tr>
           <tr><td><code>rivers_vesting</code></td><td><code>vesting</code></td><td>Lock, cliff, linear release, claim and revoke</td></tr>
-          <tr><td><code>rivers_shield</code></td><td><code>shield</code></td><td>Shielded pool (in development)</td></tr>
+          <tr><td><code>rivers_shield</code></td><td><code>shield</code></td><td>Shielded pools: private notes, nullifiers and Groth16 proof checks</td></tr>
         </tbody>
       </table>
       <h3>Reading a time-weighted price</h3>
@@ -207,6 +208,9 @@ let (a_total, b_total) = pool::cumulative_prices(&amp;pool, &amp;clock);
           <tr><td><code>/dex/pools</code></td><td>Pools with reserves and prices</td></tr>
           <tr><td><code>/dex/pool/{id}/swaps</code></td><td>Recent swaps in one pool</td></tr>
           <tr><td><code>/events?module=&amp;name=&amp;addr=</code></td><td>Events from <code>network</code>, <code>vesting</code> or <code>validator</code></td></tr>
+          <tr><td><code>/shield/stats</code></td><td>Totals per shielded pool: deposits, private sends, withdrawals and notes</td></tr>
+          <tr><td><code>/shield/notes?pool=&amp;from=</code></td><td>Encrypted notes of a pool in tree order, for wallets</td></tr>
+          <tr><td><code>/shield/nullifiers?pool=</code></td><td>Spent-note markers of a pool</td></tr>
           <tr><td><code>/config</code></td><td>Package and object addresses for the current network</td></tr>
           <tr><td><code>/network/genesis.blob</code></td><td>The genesis file, for new validators</td></tr>
         </tbody>

@@ -160,9 +160,10 @@ that wallet in Rivers Core with its recovery words to administer the network.
 
 | Rivers Lend | `rivers-packages/dex/sources/lend.move`, wallet Lend page, Core markets page | Isolated markets (collateral and loan coin per market), share coins for suppliers, kinked interest rate, liquidation with bonus. Prices are pool time-weighted averages (at least 10 minutes, at most 1 hour old); a keeper records a price observation every 2 minutes. |
 | Website | `apps/site` | Public site with the scroll-driven 3D story, links to every product, the whitepaper and the documentation. |
-| Shielded payments (in progress) | `rivers-packages/shield` | Groth16 join-split circuit (2 notes in, 2 out, tree depth 20), Poseidon commitments, nullifiers, encrypted notes and the Move pool that verifies proofs with `sui::groth16`. |
+| Rivers Shield | `rivers-packages/shield`, wallet Private page, Scan shielded page, Core shielded pools | Groth16 join-split circuit (2 notes in, 2 out, tree depth 20), Poseidon commitments, nullifiers, encrypted notes and the Move pool that verifies proofs with `sui::groth16`. Shielded pools for RVRB and USDs; the wallet proves in the browser. Testnet proving key from a one-party setup. |
 
-Move tests: `rivers move test -e testnet` in `rivers-packages/dex` (15 tests: pools and lending).
+Move tests: `rivers move test -e testnet` in `rivers-packages/dex` (15 tests: pools and lending) and
+`rivers-packages/shield` (9 tests with real proofs). Internal security review: `rivers-packages/AUDIT.md`.
 
 Not built yet, and why:
 

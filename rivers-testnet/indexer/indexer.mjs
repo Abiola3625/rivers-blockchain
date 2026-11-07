@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS liquidity(digest TEXT, seq INTEGER, pool TEXT, cp INT
 CREATE TABLE IF NOT EXISTS app_event(digest TEXT, seq INTEGER, cp INTEGER, ts INTEGER, pkg TEXT, module TEXT, name TEXT, sender TEXT,
   json TEXT, PRIMARY KEY(digest, seq));
 CREATE INDEX IF NOT EXISTS app_event_name ON app_event(module, name, cp DESC);
+CREATE TABLE IF NOT EXISTS shield_note(pkg TEXT, pool TEXT, idx INTEGER, commitment TEXT, encrypted TEXT, cp INTEGER, ts INTEGER,
+  PRIMARY KEY(pool, idx));
+CREATE TABLE IF NOT EXISTS shield_null(pkg TEXT, pool TEXT, nullifier TEXT, cp INTEGER, PRIMARY KEY(pool, nullifier));
+CREATE TABLE IF NOT EXISTS shield_tx(digest TEXT PRIMARY KEY, pkg TEXT, pool TEXT, cp INTEGER, ts INTEGER, deposit INTEGER, withdraw INTEGER);
 CREATE TABLE IF NOT EXISTS epoch(epoch INTEGER PRIMARY KEY, start_ts INTEGER, first_cp INTEGER, total_stake INTEGER, rgp INTEGER);
 CREATE TABLE IF NOT EXISTS val_epoch(epoch INTEGER, addr TEXT, name TEXT, pool TEXT, stake INTEGER, rewards_pool INTEGER,
   pool_tokens INTEGER, commission INTEGER, PRIMARY KEY(epoch, addr));
@@ -126,11 +130,22 @@ const qLiq = db.prepare('INSERT OR IGNORE INTO liquidity VALUES(?,?,?,?,?,?,?,?,
 const qAppEv = db.prepare('INSERT OR IGNORE INTO app_event VALUES(?,?,?,?,?,?,?,?,?)');
 // Staking events of the system package (0x3::validator) feed the Rivers Validator dashboard.
 const APP_MODULES = new Set(['network', 'vesting', 'validator']);
+// Shielded pool events: the wallet rebuilds the note tree from commitments in index order and
+// checks its notes against the nullifiers. Only events of the configured package are served.
+const qNote = db.prepare('INSERT OR IGNORE INTO shield_note VALUES(?,?,?,?,?,?,?)');
+const qNull = db.prepare('INSERT OR IGNORE INTO shield_null VALUES(?,?,?,?)');
+const qShTx = db.prepare('INSERT OR IGNORE INTO shield_tx VALUES(?,?,?,?,?,?,?)');
+function storeShield(tx, pkg, name, j, seq, ts) {
+  if (name === 'NewCommitment') qNote.run(pkg, j.pool, Number(j.index), String(j.commitment), String(j.encrypted || ''), seq, ts);
+  else if (name === 'NewNullifier') qNull.run(pkg, j.pool, String(j.nullifier), seq);
+  else if (name === 'Transacted') qShTx.run(tx.digest, pkg, j.pool, seq, ts, BigInt(j.deposit), BigInt(j.withdraw));
+}
 function storeEvents(tx, seq, ts) {
   const evs = (tx.events && tx.events.events) || [];
   evs.forEach((e, i) => {
     const t = e.eventType || '';
     const parts = t.split('<')[0].split('::');
+    if (parts[1] === 'shield') { storeShield(tx, parts[0], parts[2], plain(e.json) || {}, seq, ts); return; }
     if (APP_MODULES.has(parts[1]) && (parts[1] !== 'validator' || /^0x0*3$/.test(parts[0]))) {
       qAppEv.run(tx.digest, i, seq, ts, parts[0], parts[1], parts[2], tx.transaction && tx.transaction.sender, JSON.stringify(plain(e.json) || {}));
       return;
@@ -367,6 +382,7 @@ function token(ct, q, sub) {
   return db.prepare(`SELECT ${TOK_COLS} FROM token t WHERE t.coin_type=?`).get(ct) || { error: 'Unknown token' };
 }
 
+function shieldPkg() { const c = dexConfig(); return (c && c.shield && c.shield.package) || ''; }
 function dexConfig() {
   try { return existsSync(DEX_CONFIG) ? JSON.parse(readFileSync(DEX_CONFIG, 'utf8')) : null; } catch (e) { return null; }
 }
@@ -398,6 +414,19 @@ const routes = {
     return rows.map((r) => ({ ...r, json: JSON.parse(r.json) }));
   },
   '/dex/pools': () => pools(),
+  // Notes of one shielded pool in tree order, from index `from`. `encrypted` is base64.
+  '/shield/notes': (q) => {
+    const pkg = shieldPkg();
+    return db.prepare('SELECT idx i, commitment c, encrypted e FROM shield_note WHERE pool=? AND pkg=? AND idx>=? ORDER BY idx LIMIT ?')
+      .all(q.get('pool') || '', pkg, Number(q.get('from') || 0), Math.min(10000, Number(q.get('limit') || 5000)));
+  },
+  '/shield/nullifiers': (q) => db.prepare('SELECT nullifier FROM shield_null WHERE pool=? AND pkg=? AND cp>=? ORDER BY cp')
+    .all(q.get('pool') || '', shieldPkg(), Number(q.get('since') || 0)).map((r) => r.nullifier),
+  // Totals per shielded pool. Amounts are strings in base units.
+  '/shield/stats': () => db.prepare(`SELECT pool, COUNT(*) txs, CAST(SUM(deposit) AS TEXT) deposited, CAST(SUM(withdraw) AS TEXT) withdrawn,
+      SUM(deposit>0) deposits, SUM(withdraw>0) withdrawals, SUM(deposit=0 AND withdraw=0) privateSends, MAX(ts) lastTs,
+      (SELECT COUNT(*) FROM shield_note n WHERE n.pool=t.pool) notes
+      FROM shield_tx t WHERE pkg=? GROUP BY pool`).all(shieldPkg()),
   '/tokens': () => db.prepare(`SELECT ${TOK_COLS} FROM token t ORDER BY holders DESC, t.first_cp`).all(),
   '/account-tokens': (q) => {
     const a = norm(q.get('addr'));
