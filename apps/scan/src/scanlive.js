@@ -296,7 +296,7 @@ function bindShell(){const gs=$('gs');if(!gs)return;gs.addEventListener('submit'
   const g=GW.find(x=>x[0]===q.toLowerCase());if(g){location.hash='explorer-address-'+g[1];return;}const v=V.find(x=>x.name.toLowerCase()===q.toLowerCase());if(v){location.hash='explorer-validator-'+v.id;return;}
   if(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q)){location.hash='explorer-tx-'+q;return;}if(q.toUpperCase()==='RVRB'){location.hash='explorer-token';return;}
   toast('No results for "'+raw+'"',false);});}
-function lvFooter(){const p=document.querySelector('.xfoot p');if(p&&LV.chainId)p.textContent='Rivers Testnet explorer · Chain ID '+short(LV.chainId,6);document.querySelectorAll('.xfoot a[href="#wallet"],.xfoot a[href="#institutions"]').forEach(a=>{a.setAttribute('href','#');a.dataset.act='lvsoon';a.dataset.v=a.textContent;});}
+function lvFooter(){const p=document.querySelector('.xfoot p');if(p&&LV.chainId)p.textContent='Rivers Testnet explorer · Chain ID '+short(LV.chainId,6);document.querySelectorAll('.xfoot a[href="#wallet"],.xfoot a[href="#institutions"]').forEach(a=>{const app=a.getAttribute('href').slice(1);if(typeof RV_LINKS!=='undefined'&&RV_LINKS[app]){a.setAttribute('href',RV_LINKS[app]);a.setAttribute('rel','noopener');}else{a.setAttribute('href','#');a.dataset.act='lvsoon';a.dataset.v=a.textContent;}});}
 function renderChrome(){lvFooter();const t=$('tick');if(t){const st=LV.online===false?'<span class="live bad">OFFLINE</span>':LV.online?'<span class="live">LIVE</span>':'<span class="muted">CONNECTING</span>';
   t.innerHTML=st+'<span>TPS <b>'+fmt(S.tps,1)+'</b></span><span>BLOCK TIME <b>'+fmt(S.fin)+' ms</b></span><span>BLOCK <b>#'+fmt(S.cp)+'</b></span><span>EPOCH <b>'+S.epoch+'</b></span><span>VALIDATORS <b>'+V.length+'</b></span><span>STAKED <b>'+compact(stakedTotal())+' RVRB</b></span><span>MINED <b>'+fmt(S.emitted,2)+' / 11M</b></span><span>GAS <b>'+fmt(LV.rgp)+' drops</b></span>';}
  let o=$('lvOff');if(!o){const pg=$('page');if(pg){pg.insertAdjacentHTML('beforebegin','<div id="lvOff"></div>');o=$('lvOff');}}
@@ -319,7 +319,7 @@ const LACT={
 async function lvBoot(){Object.assign(ACTS,LACT);EX.txView='live';
  V.length=0;S.cps=[];S.txs=[];S.pays=[];S.arcs=[];S.xc=[];S.alerts=[];S.mix={transfer:0,defi:0,bank:0,private:0,system:0};S.mixHist=[];S.finHist=new Array(12).fill(0);S.hist={tps:[],fin:[],t:[]};
  S.tps=0;S.fin=0;S.p95=0;S.peak=0;S.halted=false;S.load=0;S.connected=false;S.W.mine=[];S.light=0;S.accounts=0;S.totalTx=0;S.txToday=0;S.feesToday=0;S.cp=0;S.reserve=MINED;S.emitted=0;
- $('root').innerHTML='<div class="lvload">'+logoSvg(64)+'<b>Rivers Scan</b><span>Connecting…</span></div>';
+ $('root').innerHTML='<div class="lvload">'+logoSvg(64)+'<b>'+(typeof RV_APP!=='undefined'?PROD[RV_APP].name:'Rivers Scan')+'</b><span>Connecting…</span></div>';
  // Over a codespace tunnel the first requests can take a while, so the loading screen says what is happening.
  const msg=t=>{const e=document.querySelector('.lvload span');if(e)e.innerHTML=t;};
  const slow=setTimeout(()=>msg('Still connecting to the Rivers testnet. The testnet server may be starting up.'),12000);

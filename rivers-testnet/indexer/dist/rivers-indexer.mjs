@@ -17823,13 +17823,13 @@ var qPoolRes = db.prepare("UPDATE pool SET reserve_a=?, reserve_b=? WHERE id=?")
 var qSwap = db.prepare("INSERT OR IGNORE INTO swap VALUES(?,?,?,?,?,?,?,?,?,?,?)");
 var qLiq = db.prepare("INSERT OR IGNORE INTO liquidity VALUES(?,?,?,?,?,?,?,?,?,?)");
 var qAppEv = db.prepare("INSERT OR IGNORE INTO app_event VALUES(?,?,?,?,?,?,?,?,?)");
-var APP_MODULES = /* @__PURE__ */ new Set(["network", "vesting"]);
+var APP_MODULES = /* @__PURE__ */ new Set(["network", "vesting", "validator"]);
 function storeEvents(tx, seq, ts) {
   const evs = tx.events && tx.events.events || [];
   evs.forEach((e, i) => {
     const t = e.eventType || "";
     const parts = t.split("<")[0].split("::");
-    if (APP_MODULES.has(parts[1])) {
+    if (APP_MODULES.has(parts[1]) && (parts[1] !== "validator" || /^0x0*3$/.test(parts[0]))) {
       qAppEv.run(tx.digest, i, seq, ts, parts[0], parts[1], parts[2], tx.transaction && tx.transaction.sender, JSON.stringify(plain(e.json) || {}));
       return;
     }
@@ -18106,6 +18106,7 @@ var routes = {
     const c = dexConfig() || {};
     const module = q.get("module"), name = q.get("name");
     const pkg = module === "network" ? c.connect && c.connect.package : module === "vesting" ? c.vesting && c.vesting.package : null;
+    if (!APP_MODULES.has(module)) return [];
     const limit = Math.min(500, Number(q.get("limit") || 100));
     const a = q.get("addr") ? norm(q.get("addr")) : null;
     const rows = db.prepare(`SELECT digest, cp, ts, pkg, name, sender, json FROM app_event WHERE module=? ${name ? "AND name=?" : ""} ${pkg ? "AND pkg=?" : ""}
@@ -18197,8 +18198,14 @@ function account(addr, q, sub) {
     rewards: rw.length ? rw : void 0
   };
 }
+var NETWORK_DIR = process.env.RIVERS_NETWORK_DIR || "";
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
+  if (u.pathname === "/network/genesis.blob" && NETWORK_DIR && existsSync(NETWORK_DIR + "/genesis.blob")) {
+    res.writeHead(200, { "Content-Type": "application/octet-stream", "Access-Control-Allow-Origin": "*" });
+    res.end(readFileSync(NETWORK_DIR + "/genesis.blob"));
+    return;
+  }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Cache-Control", "no-store");

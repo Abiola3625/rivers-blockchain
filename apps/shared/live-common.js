@@ -31,3 +31,8 @@ const RV_CALLS={'pool::swap_a_for_b':'Swap','pool::swap_b_for_a':'Swap','pool::a
  'sui_system::request_add_stake':'Stake','sui_system::request_withdraw_stake':'Unstake','network::pay':'Bank payment','network::register':'Register institution','network::set_limit':'Change limit','network::set_active':'Change status','network::set_paused':'Pause payments',
  'vesting::issue':'Issue vesting','vesting::issue_many':'Issue vesting','vesting::claim_to_sender':'Claim vesting','vesting::revoke_to_sender':'Revoke vesting','coin_registry::finalize_registration':'Register token','package::make_immutable':'Create token'};
 const rvLabel=(l,kind)=>RV_CALLS[l]||(kind==='publish'?'Publish':l?l.split('::').pop().replace(/_/g,' ').replace(/^./,c=>c.toUpperCase()):'Contract call');
+/* Rivers Connect registry: the Network object and its institution records (returned by the RPC as BCS). */
+const RV_INST=bcs.struct('Institution',{name:bcs.string(),city:bcs.string(),country:bcs.string(),tier:bcs.u8(),payment_limit:bcs.u64(),active:bcs.bool(),joined_ms:bcs.u64(),sent:bcs.u64(),received:bcs.u64()});
+const rvHex=b=>'0x'+Array.from(Object.values(b)).map(x=>x.toString(16).padStart(2,'0')).join('');
+async function rvNet(){await rvConfig();const c=RVC&&RVC.connect;if(!c)return null;const n=await rvObj(c.network);const net=n.json;const r=(await SSv.listDynamicFields({parent:net.institutions.id,pageSize:1000,readMask:{paths:['name','value']}})).response.dynamicFields||[];
+ const inst={};r.forEach(f=>{try{inst[rvHex(f.name.value)]=RV_INST.parse(Uint8Array.from(Object.values(f.value.value)));}catch(e){}});return {c,net,inst,paused:!!net.paused,payments:Number(net.payments||0)};}

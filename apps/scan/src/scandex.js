@@ -102,7 +102,9 @@ Object.assign(LACT,{
 });
 
 /* ---------- prices and liquidity across Scan ---------- */
-topTokens=function(){if(!dReady())return [];const m={};DEX.pools.forEach(p=>{[p.typeA,p.typeB].forEach(t=>{const pr=dPrice(t);if(pr!=null){m[t]=(m[t]||0)+dRes(p,t)*pr;}});});return Object.keys(m).map(t=>({t:dSym(t),ct:t,tvl:m[t]})).sort((a,b)=>b.tvl-a.tvl);};
+topTokens=function(){if(!dReady())return [];const m={};DEX.pools.forEach(p=>{[p.typeA,p.typeB].forEach(t=>{const pr=dPrice(t);if(pr!=null){m[t]=(m[t]||0)+dRes(p,t)*pr;}});});const l=Object.keys(m).map(t=>({t:dSym(t),ct:t,tvl:m[t],vol:0})).sort((a,b)=>b.tvl-a.tvl);
+ // The design's overview code reads TOKENS[symbol]; tokens it does not know get a neutral entry.
+ l.forEach(x=>{if(!TOKENS[x.t])TOKENS[x.t]={...TOKENS.USDs,name:(ST.meta[x.ct]||{}).name||x.t};});return l;};
 treemap=function(){const items=topTokens().slice(0,11).map(x=>({t:x.t,ct:x.ct,v:x.tvl}));const out=[];const TW=innerWidth<700?600:1200,TH=innerWidth<700?360:300;tmapLayout(items,0,0,TW,TH,out);const mx=items[0]?items[0].v:1;
  return '<svg class="tm" viewBox="0 0 '+TW+' '+TH+'" style="width:100%;height:auto" aria-label="Liquidity by token">'+out.map(r=>{const f=r.v/mx;const big=r.w>70&&r.h>40;return '<g data-act="dtok" data-id="'+esc(r.ct)+'" style="cursor:pointer"><rect x="'+(r.x+2)+'" y="'+(r.y+2)+'" width="'+Math.max(0,r.w-4)+'" height="'+Math.max(0,r.h-4)+'" rx="10" style="fill:'+greenRamp(.18+f*.75)+';stroke:var(--hair2)"/>'+
   (big?'<text x="'+(r.x+12)+'" y="'+(r.y+24)+'" style="fill:'+(f>.55&&!C.light?'#012014':'var(--fg)')+'" font-size="14" font-family="Manrope,sans-serif" font-weight="800">'+esc(r.t)+'</text><text x="'+(r.x+12)+'" y="'+(r.y+40)+'" style="fill:'+(f>.55&&!C.light?'#013A23':'var(--muted)')+'" font-size="10.5">'+usdF(r.v)+'</text>':'')+'</g>';}).join('')+'</svg>';};

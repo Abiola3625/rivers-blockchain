@@ -131,7 +131,7 @@ indexer_start() {
     curl -fsSL "https://nodejs.org/dist/$NODE_VER/node-$NODE_VER-linux-$arch.tar.xz" | tar -xJ -C "$DATA/node" --strip-components=1
   fi
   pkill -f "rivers-indexer.mjs" >/dev/null 2>&1 || true
-  RIVERS_INDEXER_DB="$DATA/indexer.db" RIVERS_DEX_CONFIG="$DATA/dex.json" NODE_NO_WARNINGS=1 \
+  RIVERS_INDEXER_DB="$DATA/indexer.db" RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_NETWORK_DIR="$NET" NODE_NO_WARNINGS=1 \
     nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-indexer.mjs" >>"$DATA/indexer.log" 2>&1 &
 }
 

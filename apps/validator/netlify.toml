@@ -1,0 +1,7 @@
+# Rivers Validator. In Netlify, set the base directory to apps/validator.
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

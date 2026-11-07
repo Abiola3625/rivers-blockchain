@@ -138,3 +138,33 @@ After changing `rivers-packages/token-studio`, rebuild it and regenerate
 `rivers-testnet/indexer/dex-bytecode.json` with `rivers move build -e testnet --dump-bytecode-as-base64`
 and run `npm run build` in `rivers-testnet/indexer`. A testnet that already has the DEX keeps the
 published version.
+
+
+## Rivers interfaces and services (testnet)
+
+| Part | Source | What it does |
+|---|---|---|
+| Interface framework | `apps/shared` | One shell, build and security headers for every interface. Each site serves one interface; `links.js` connects them. |
+| Rivers Wallet | `apps/wallet` | Portfolio with prices, send, receive, swap, pools, staking, token creation, vesting claims, activity, security (show recovery words, change password, automatic lock). |
+| Rivers Connect | `apps/connect`, `rivers-packages/connect` | Institutions admitted on chain pay each other with ISO 20022 reference and purpose, single payments or CSV batches, convert through Rivers DEX, see their controls. The pacs.008 message is generated for core banking systems. |
+| Rivers Core | `apps/core` | Administrators: health and alerts, invariant checks, protocol and mining parameters, faucet top-up, institution admission, limits, suspension and payment pause, investor vesting, endpoint tests and an on-chain audit log. |
+| Rivers Validator | `apps/validator`, `rivers-testnet/validator-setup.sh` | Validator dashboard, validator set, operator actions (commission, profile, leave), joining and a one-script server setup. |
+| Faucet | `crates/sui-faucet/src/local_faucet.rs` | Pays from all of its coins, so it keeps working after its first coin runs low and uses RVRB sent to it later. |
+| Release build | `.github/workflows/rivers-build.yml` | Publishes `rivers` (command line) and `rivers-node` (validator and full node). |
+
+Move tests: `rivers move test -e testnet` in `rivers-packages/connect` (5 tests).
+
+The service setup gives the Rivers Connect operator capability and every package upgrade capability
+to the administrator address (`RIVERS_ADMIN`, by default the foundation-1 genesis wallet). Import
+that wallet in Rivers Core with its recovery words to administer the network.
+
+Not built yet, and why:
+
+| Feature | Reason |
+|---|---|
+| Shielded payments and regulator view keys | Need an audited zero-knowledge circuit. |
+| Cross-chain gateway and bridge | Need audited bridge contracts on both chains and independent operators. |
+| Rivers Lend | Needs lending markets and a price oracle that are audited before holding funds. |
+| NFT collections, transfer fees in Token Studio | Need their own token standards; transfer fees need closed-loop tokens. |
+| Bank settlement to bank accounts | Needs agreements with banks; Connect settles in tokens on chain today. |
+| Validator map and regions | Validators publish no location; needs validators on public servers. |
