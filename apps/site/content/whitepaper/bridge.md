@@ -22,4 +22,4 @@ The Sui codebase includes a **native bridge**: a Move package on the chain, Soli
 
 ## Status
 
-The release build now includes the bridge node and its command-line tool. The bridge contracts have been compiled and deployed to a local Ethereum test chain, and Rivers validators have registered bridge keys on a local Rivers network. The next steps are deployment to Sepolia, starting the bridge nodes on the testnet validators, registering bridged ETH on Rivers, and the Cross-chain page in Rivers Wallet.
+The release build includes the bridge node and its command-line tool. On a local network with four validators and a local Ethereum chain, the full round trip works: ETH locked on Ethereum was minted on Rivers after the committee signed, and bridged ETH sent from Rivers was released on Ethereum against the committee's signatures. Bridged ETH was approved on Rivers by a committee-signed governance message. The next steps are the Sepolia deployment for the testnet validators and the Cross-chain page in Rivers Wallet.

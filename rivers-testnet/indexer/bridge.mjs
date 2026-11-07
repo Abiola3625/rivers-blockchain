@@ -7,6 +7,7 @@
 //   register <network.yaml> <dir> <rpc> <host> [faucet]  register each validator's bridge key
 //   evm-config <dir> <out.json>                 write the Sepolia deploy config for the committee
 //   client-key <file> <rpc> <faucet>           create the key that submits bridge transactions on Rivers
+//   token <client key> <rpc> <out.json>        publish bridged ETH on Rivers and register it with the bridge
 // Bridge keys are secp256k1 private keys, stored as base64 like `sui-bridge-cli
 // create-bridge-validator-key` writes them. They never leave the machine that runs the nodes.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -14,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
+import ethBytecode from './bridged-eth-bytecode.json' with { type: 'json' };
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
 
@@ -121,7 +123,34 @@ if (cmd === 'keys') {
     await new Promise((r) => setTimeout(r, 3000));
   }
   console.log(addr);
+} else if (cmd === 'token') {
+  // Bridged ETH (8 decimals, from bridge/move/tokens/eth). The bridge takes its treasury and
+  // upgrade capabilities, so only bridge messages signed by the committee can mint it.
+  const [file, rpc, out] = args;
+  if (existsSync(out)) { console.log(readFileSync(out, 'utf8')); process.exit(0); }
+  const kp = Ed25519Keypair.fromSecretKey(Buffer.from(readFileSync(file, 'utf8').trim(), 'base64').subarray(1));
+  const client = new SuiGrpcClient({ network: 'testnet', baseUrl: rpc });
+  const exec = async (tx) => {
+    tx.setSender(kp.toSuiAddress());
+    const r = await client.signAndExecuteTransaction({ transaction: tx, signer: kp, include: { effects: true, objectTypes: true } });
+    const t = r.Transaction || r.FailedTransaction;
+    if (!t.status.success) throw new Error(JSON.stringify(t.status));
+    await client.waitForTransaction({ digest: t.digest });
+    return t;
+  };
+  const tx = new Transaction();
+  const [up] = tx.publish({ modules: ethBytecode.modules, dependencies: ethBytecode.dependencies });
+  tx.transferObjects([up], kp.toSuiAddress());
+  const t = await exec(tx);
+  const ty = t.objectTypes, find = (s) => Object.keys(ty).find((k) => ty[k].includes(s));
+  const pkg = Object.keys(ty).find((k) => ty[k] === 'package');
+  const tx2 = new Transaction();
+  tx2.moveCall({ target: '0xb::bridge::register_foreign_token', typeArguments: [pkg + '::eth::ETH'], arguments: [tx2.object('0x9'), tx2.object(find('::coin::TreasuryCap<')), tx2.object(find('::package::UpgradeCap')), tx2.object(find('::coin::CoinMetadata<'))] });
+  await exec(tx2);
+  const res = { package: pkg, type: pkg + '::eth::ETH', tokenId: 2 };
+  writeFileSync(out, JSON.stringify(res, null, 2));
+  console.log(JSON.stringify(res));
 } else {
-  console.log('Commands: keys, register, evm-config, client-key');
+  console.log('Commands: keys, register, evm-config, client-key, token');
   process.exit(1);
 }

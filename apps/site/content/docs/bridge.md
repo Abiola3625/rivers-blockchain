@@ -22,8 +22,8 @@ Each validator registers a secp256k1 bridge key on Rivers with `0xb::bridge::com
 
 | Part | Status |
 |---|---|
-| Bridge node in the release build | Added |
-| Bridge contracts | Compiled and tested on a local Ethereum chain |
-| Committee registration on Rivers | Tested on a local network |
+| Bridge node and command-line tool in the release build | Done |
+| Full round trip on a local network | Done: ETH locked on a local Ethereum chain arrived on Rivers, and bridged ETH sent from Rivers was claimed back on Ethereum |
+| Committee registration and bridged ETH approval by the committee | Done on the local network; runs automatically on the testnet |
 | Sepolia deployment | Next |
 | Wallet Cross-chain page | After deployment |

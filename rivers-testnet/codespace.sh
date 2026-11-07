@@ -170,6 +170,45 @@ bridge_setup() {
   NODE_NO_WARNINGS=1 "$NODE" "$H" client-key "$B/client.key" http://127.0.0.1:9000 http://127.0.0.1:9123 > "$B/client.address"
 }
 
+# Starts one bridge node per validator once the Sepolia contracts are deployed
+# (rivers-testnet/bridge/sepolia.json) and the release has the bridge program. Node 0 also runs
+# the client that submits approvals and claims on Rivers. The first time, it publishes bridged ETH
+# on Rivers and asks the committee to approve it as token 2.
+bridge_nodes() {
+  local B="$DATA/bridge" H="$PWD/rivers-testnet/indexer/dist/rivers-bridge.mjs" D="$PWD/rivers-testnet/bridge/sepolia.json"
+  local CLI="$DATA/bin/rivers-bridge-cli" NB="$DATA/bin/rivers-bridge" ETH_RPC="${RIVERS_SEPOLIA_RPC:-https://ethereum-sepolia-rpc.publicnode.com}"
+  [ -f "$D" ] && [ -x "$NB" ] && [ -x "$CLI" ] || { echo "Bridge: waiting for the Sepolia deployment and the bridge program"; return 0; }
+  local proxy start n i
+  proxy=$(json_field suiBridge < "$D"); start=$(grep -o '"startBlock": *[0-9]*' "$D" | grep -o '[0-9]*$')
+  NODE_NO_WARNINGS=1 "$NODE" "$H" token "$B/client.key" http://127.0.0.1:9000 "$B/eth-token.json" >/dev/null || return 1
+  local pkg; pkg=$(json_field package < "$B/eth-token.json"); pkg=${pkg#0x}
+  n=$(ls "$B/keys" | grep -c bridge-key-)
+  mkdir -p "$B/db"
+  for i in $(seq 0 $((n - 1))); do
+    {
+      echo "server-listen-port: $((9191 + i))"
+      echo "metrics-port: $((9300 + i))"
+      echo "bridge-authority-key-path: $B/keys/bridge-key-$i"
+      if [ "$i" = 0 ]; then echo "run-client: true"; echo "db-path: $B/db"; else echo "run-client: false"; fi
+      echo "approved-governance-actions:"
+      echo "  - AddTokensOnSuiAction: { nonce: 0, chain_id: SuiCustom, native: false, token_ids: [2], token_type_names: [{ struct: { address: \"$pkg\", module: eth, name: ETH, type_args: [] } }], token_prices: [430000000000] }"
+      echo "sui: { sui-rpc-url: http://127.0.0.1:9000, sui-bridge-chain-id: 2, bridge-client-key-path: $B/client.key }"
+      echo "eth: { eth-rpc-urls: [$ETH_RPC], eth-rpc-quorum: 1, eth-health-check-interval-secs: 300, eth-bridge-proxy-address: \"$proxy\", eth-bridge-chain-id: 11, eth-contracts-start-block-fallback: $start }"
+    } > "$B/node-$i.yaml"
+    pgrep -f "rivers-bridge --config-path $B/node-$i.yaml" >/dev/null || RUST_LOG=info nohup "$NB" --config-path "$B/node-$i.yaml" >>"$B/node-$i.log" 2>&1 &
+  done
+  # Governance needs the committee, which forms at the epoch change after registration.
+  if [ ! -f "$B/token-approved" ]; then
+    [ -f "$B/eth.key" ] || { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$B/eth.key"; chmod 600 "$B/eth.key"; }
+    printf 'sui-rpc-url: http://127.0.0.1:9000\neth-rpc-url: %s\neth-bridge-proxy-address: "%s"\nsui-key-path: %s\neth-key-path: %s\n' "$ETH_RPC" "$proxy" "$B/client.key" "$B/eth.key" > "$B/cli.yaml"
+    sleep 10
+    "$CLI" governance --config-path "$B/cli.yaml" --chain-id 2 add-tokens-on-sui --nonce 0 --token-ids 2 \
+      --token-type-names "0x$pkg::eth::ETH" --token-prices 430000000000 >>"$B/governance.log" 2>&1 \
+      && grep -q "Sui Transaction succeeded" "$B/governance.log" && touch "$B/token-approved" \
+      || echo "Bridge: ETH not approved yet (the committee forms at the next epoch); start again later"
+  fi
+}
+
 update_bin() {
   local tag
   tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
@@ -180,6 +219,7 @@ update_bin() {
     mkdir -p /tmp/rivers-new && tar -xzf /tmp/rivers-new.tgz -C /tmp/rivers-new || return 0
     pkill -f "rivers start" >/dev/null 2>&1 && sleep 5
     install -m 755 /tmp/rivers-new/rivers "$BIN"
+    for b in rivers-bridge rivers-bridge-cli; do [ -f "/tmp/rivers-new/$b" ] && install -m 755 "/tmp/rivers-new/$b" "$DATA/bin/$b"; done
     echo "Installed rivers $tag"
   fi
   echo "$tag" > "$DATA/bin/version"
@@ -203,6 +243,7 @@ start() {
   indexer_start || echo "Indexer did not start; see $DATA/indexer.log" >&2
   pgrep -f "rivers-dex-setup.mjs" >/dev/null || nohup bash "$0" dex_setup >/dev/null 2>&1 &
   bridge_setup >>"$DATA/bridge.log" 2>&1 || echo "Bridge setup did not finish; see $DATA/bridge.log" >&2
+  bridge_nodes >>"$DATA/bridge.log" 2>&1 || echo "Bridge nodes did not start; see $DATA/bridge.log" >&2
   # The keeper keeps the Rivers Lend price observations fresh.
   pgrep -f "rivers-keeper.mjs" >/dev/null || RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \
     nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-keeper.mjs" >>"$DATA/keeper.log" 2>&1 &
