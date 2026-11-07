@@ -18097,6 +18097,8 @@ function token(ct, q, sub) {
   }
   return db.prepare(`SELECT ${TOK_COLS} FROM token t WHERE t.coin_type=?`).get(ct) || { error: "Unknown token" };
 }
+var BRIDGE_DIR = process.env.RIVERS_BRIDGE_DIR || "";
+var BRIDGE_DEPLOYMENT = process.env.RIVERS_BRIDGE_DEPLOYMENT || "";
 function shieldPkg() {
   const c = dexConfig();
   return c && c.shield && c.shield.package || "";
@@ -18132,6 +18134,18 @@ var routes = {
     const rows = db.prepare(`SELECT digest, cp, ts, pkg, name, sender, json FROM app_event WHERE module=? ${name ? "AND name=?" : ""} ${pkg ? "AND pkg=?" : ""}
       ${a ? "AND (sender=? OR json LIKE ?)" : ""} ORDER BY cp DESC, seq DESC LIMIT ?`).all(...[module, name, pkg].filter(Boolean), ...a ? [a, "%" + a + "%"] : [], limit);
     return rows.map((r) => ({ ...r, json: JSON.parse(r.json) }));
+  },
+  // Public bridge details: the committee's bridge keys (public keys and Ethereum addresses) and
+  // the Sepolia contract addresses once deployed.
+  "/bridge": () => {
+    const read = (f) => {
+      try {
+        return f && existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null;
+      } catch (e) {
+        return null;
+      }
+    };
+    return { committee: read(BRIDGE_DIR && BRIDGE_DIR + "/committee.json"), sepolia: read(BRIDGE_DEPLOYMENT) };
   },
   "/dex/pools": () => pools(),
   // Notes of one shielded pool in tree order, from index `from`. `encrypted` is base64.

@@ -132,6 +132,7 @@ indexer_start() {
   fi
   pkill -f "rivers-indexer.mjs" >/dev/null 2>&1 || true
   RIVERS_INDEXER_DB="$DATA/indexer.db" RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_NETWORK_DIR="$NET" NODE_NO_WARNINGS=1 \
+    RIVERS_BRIDGE_DIR="$DATA/bridge" RIVERS_BRIDGE_DEPLOYMENT="$PWD/rivers-testnet/bridge/sepolia.json" \
     nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-indexer.mjs" >>"$DATA/indexer.log" 2>&1 &
 }
 
@@ -154,6 +155,21 @@ dex_setup() {
 
 # Installs a newer release of the rivers program when the build workflow has published one. The chain
 # data is kept; only the program is replaced and the node restarts.
+# Bridge to Ethereum Sepolia. Each validator gets a bridge key and registers it on Rivers; the
+# committee forms at the next epoch change. The public keys are served by the indexer at /bridge
+# so the Sepolia contracts can be deployed for the same committee. The keys stay in $DATA/bridge.
+bridge_setup() {
+  local B="$DATA/bridge" H="$PWD/rivers-testnet/indexer/dist/rivers-bridge.mjs" n
+  mkdir -p "$B" && chmod 700 "$B"
+  n=$(grep -c "account-key-pair:" "$NET/network.yaml")
+  NODE_NO_WARNINGS=1 "$NODE" "$H" keys "$B/keys" "$n" > "$B/committee.json.new" && mv "$B/committee.json.new" "$B/committee.json"
+  if [ ! -f "$B/registered" ]; then
+    NODE_NO_WARNINGS=1 "$NODE" "$H" register "$NET/network.yaml" "$B/keys" http://127.0.0.1:9000 http://127.0.0.1 http://127.0.0.1:9123 | tee -a "$B/register.log"
+    [ "$(grep -c ': registered' "$B/register.log")" -ge "$n" ] && touch "$B/registered"
+  fi
+  NODE_NO_WARNINGS=1 "$NODE" "$H" client-key "$B/client.key" http://127.0.0.1:9000 http://127.0.0.1:9123 > "$B/client.address"
+}
+
 update_bin() {
   local tag
   tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
@@ -186,6 +202,7 @@ start() {
   fi
   indexer_start || echo "Indexer did not start; see $DATA/indexer.log" >&2
   pgrep -f "rivers-dex-setup.mjs" >/dev/null || nohup bash "$0" dex_setup >/dev/null 2>&1 &
+  bridge_setup >>"$DATA/bridge.log" 2>&1 || echo "Bridge setup did not finish; see $DATA/bridge.log" >&2
   # The keeper keeps the Rivers Lend price observations fresh.
   pgrep -f "rivers-keeper.mjs" >/dev/null || RIVERS_DEX_CONFIG="$DATA/dex.json" RIVERS_DEX_KEY="$DATA/dex/key.txt" NODE_NO_WARNINGS=1 \
     nohup "$NODE" "$PWD/rivers-testnet/indexer/dist/rivers-keeper.mjs" >>"$DATA/keeper.log" 2>&1 &

@@ -6,6 +6,7 @@
 //   keys <dir> <count>                         create one bridge key per validator, print addresses
 //   register <network.yaml> <dir> <rpc> <host> [faucet]  register each validator's bridge key
 //   evm-config <dir> <out.json>                 write the Sepolia deploy config for the committee
+//   client-key <file> <rpc> <faucet>           create the key that submits bridge transactions on Rivers
 // Bridge keys are secp256k1 private keys, stored as base64 like `sui-bridge-cli
 // create-bridge-validator-key` writes them. They never leave the machine that runs the nodes.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -48,7 +49,7 @@ if (cmd === 'keys') {
       do k = randomBytes(32); while (!secp256k1.utils.isValidSecretKey(k));
       writeFileSync(f, Buffer.from(k).toString('base64'), { mode: 0o600 });
     }
-    list.push({ index: i, file: f, ...describe(loadKey(f)) });
+    list.push({ index: i, ...describe(loadKey(f)) });
   }
   console.log(JSON.stringify(list, null, 2));
 } else if (cmd === 'register') {
@@ -105,7 +106,22 @@ if (cmd === 'keys') {
   };
   writeFileSync(out, JSON.stringify(cfg, null, 2));
   console.log(JSON.stringify(cfg));
+} else if (cmd === 'client-key') {
+  // The bridge client pays Rivers fees for approvals and claims. Stored as a flagged Ed25519 key,
+  // which `sui-bridge` reads with `read_key`.
+  const [file, rpc, faucet] = args;
+  if (!existsSync(file)) writeFileSync(file, Buffer.concat([Buffer.from([0]), randomBytes(32)]).toString('base64'), { mode: 0o600 });
+  const kp = Ed25519Keypair.fromSecretKey(Buffer.from(readFileSync(file, 'utf8').trim(), 'base64').subarray(1));
+  const addr = kp.toSuiAddress();
+  const client = new SuiGrpcClient({ network: 'testnet', baseUrl: rpc });
+  for (let i = 0; i < 5; i++) {
+    const bal = BigInt((await client.getBalance({ owner: addr })).balance.balance);
+    if (bal >= 20_000_000_000n) break;
+    await fetch(faucet.replace(/\/+$/, '') + '/v2/gas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ FixedAmountRequest: { recipient: addr } }) }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  console.log(addr);
 } else {
-  console.log('Commands: keys, register, evm-config');
+  console.log('Commands: keys, register, evm-config, client-key');
   process.exit(1);
 }
