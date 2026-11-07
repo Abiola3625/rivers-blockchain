@@ -33,6 +33,7 @@ No capability allows moving a user's coins.
 | Changing a proof's recipient or amounts | External data hash computed by the contract |
 | Administrator error | Bounded settings; pausing never freezes withdrawals |
 | Compromised administrator key | Recommended: multi-signature wallet and a delay on risk changes before mainnet |
+| Dishonest node showing a false chain | The wallet's Chain check verifies the validators' BLS signature on the newest checkpoint on the user's own device, and follows each change of validators through signed end-of-epoch checkpoints |
 | Validator collusion | Byzantine fault tolerance up to one third of voting power; 10% cap per validator |
 
 ## Separate sites

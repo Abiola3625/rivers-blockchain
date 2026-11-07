@@ -11,3 +11,7 @@ copyFileSync('node_modules/snarkjs/COPYING', 'dist/snarkjs-LICENSE.txt');
 copyFileSync('../../rivers-packages/shield/keys/transaction.wasm', 'dist/shield.wasm');
 copyFileSync('../../rivers-packages/shield/keys/transaction.zkey', 'dist/shield.zkey');
 console.log('Shielded payments worker built.');
+
+// Chain check: BLS signature checks for checkpoints, in a worker so phones stay responsive.
+await build({ entryPoints: ['src/chain-worker.js'], bundle: true, format: 'iife', minify: true, target: 'es2020', outfile: 'dist/chain-worker.js', nodePaths: [new URL('node_modules', import.meta.url).pathname] });
+console.log('Chain check worker built.');

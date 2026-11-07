@@ -9,3 +9,4 @@
 .rvtable td .btns{flex-wrap:nowrap}
 .chip[data-act]{border:1px solid var(--hair2);background:var(--sunk);color:var(--fg)}
 @media (max-width:700px){.gate{padding:24px 6px}}
+.chk.note{background:rgba(255,181,71,.15);color:var(--warn)}

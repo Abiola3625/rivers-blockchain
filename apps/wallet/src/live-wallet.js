@@ -15,16 +15,18 @@ async function wvVest(){await rvConfig();if(!RVC||!RVC.vesting||!IDX.ok)return;t
  WV.vest=(await Promise.all(ev.map(async e=>{try{const o=await rvObj(e.json.schedule);const j=o.json;if(!j||j.beneficiary!==WAL.addr)return null;return {id:e.json.schedule,type:o.type,label:j.label,total:Number(j.total)/1e9,claimed:Number(j.claimed)/1e9,bps:Number(j.immediate_bps),start:Number(j.start_ms),cliff:Number(j.cliff_ms),dur:Number(j.duration_ms),revoked:!!j.revoked};}catch(x){return null;}}))).filter(Boolean);}catch(e){}}
 function wvVested(v,now){if(v.revoked)return v.total;if(now<v.start)return 0;const el=now-v.start,imm=v.total*v.bps/10000;if(el>=v.dur)return v.total;if(el<v.cliff)return imm;return imm+(v.total-imm)*el/v.dur;}
 setInterval(()=>{if(WAL.addr)wvLoad();},20000);
-const WSUBS=[['portfolio','Home',IC.home],['swap','Swap',IC.swap],['create','Create token',IC.cube],['stake','Stake',IC.stake],['pools','Pools',IC.droplet],['activity','Activity',IC.list],['security','Security',IC.shield],['lend','Lend',IC.lend],['private','Private',IC.lock],['crosschain','Cross-chain',IC.bridge]];
+const WSUBS=[['portfolio','Home',IC.home],['swap','Swap',IC.swap],['create','Create token',IC.cube],['stake','Stake',IC.stake],['pools','Pools',IC.droplet],['activity','Activity',IC.list],['security','Security',IC.shield],['verify','Chain check',IC.shield],['lend','Lend',IC.lend],['private','Private',IC.lock],['crosschain','Cross-chain',IC.bridge]];
 VIEWS.wallet={subs:WSUBS,
  build(sub){
   if(sub==='crosschain')return lvSoonPage('Cross-chain','Moving assets between Rivers and other chains needs audited bridge contracts on both sides and independent operators. It opens after those are in place.');
+  if(sub==='verify')return wcPage();
   if(!WAL.kp)return rvGate('Rivers Wallet','Hold, send, swap and stake RVRB and every Rivers token. Create a wallet or import one with its 12 recovery words.');
   if(sub==='swap')return EXX.swap.build();if(sub==='pools')return EXX.pools.build();if(sub==='create')return EXX.create.build();
   if(sub==='portfolio')return `
   <div class="g c32 ais">
    <div class="acct"><div class="ch"><div class="who">${identicon(WAL.addr,46)}<div style="min-width:0"><div style="font-weight:800;font-size:1rem">My wallet</div><div class="mono muted trunc" style="font-size:.74rem">${short(WAL.addr,10)}</div></div></div>
      <div class="btns"><button class="icobtn" data-act="copy" data-v="${WAL.addr}" aria-label="Copy address">${IC.copy}</button><span class="b ok dot">Encrypted in this browser</span></div></div>
+    <a href="#wallet-verify" id="wcBadge" class="b dot" style="align-self:flex-start">Checking the chain…</a>
     <div><span class="cap">Total value</span><div class="big" id="wTot">—</div><div class="fg2" style="font-size:.84rem;margin-top:4px" id="wChg"></div></div>
     <div class="qa"><button data-act="wvsend">${IC.send}Send</button><button data-act="wvrecv">${IC.recv}Receive</button><a href="#wallet-swap">${IC.swap}Swap</a><a href="#wallet-stake">${IC.stake}Stake</a><a href="#wallet-pools">${IC.droplet}Pools</a><button data-act="walfaucet">${IC.droplet}Test RVRB</button></div></div>
    <div class="card"><div class="ch"><h2>Positions</h2><span class="sub">Earning across Rivers</span></div><div class="list" id="wPos"></div></div></div>
@@ -70,7 +72,7 @@ VIEWS.wallet={subs:WSUBS,
     <div class="fld"><label for="sePw">Password</label><input class="in" id="sePw" type="password" autocomplete="current-password"></div><div id="seErr"></div><button class="btn sm" data-act="wvreveal">Show recovery words</button><div id="seWords"></div>
     <div class="cap">Change password</div><div class="fld"><label for="seOld">Current password</label><input class="in" id="seOld" type="password" autocomplete="current-password"></div>${walPwFields()}<button class="btn sm" data-act="wvpw">Change password</button></div></div>`;
   return '';},
- after(sub){if(!WAL.kp)return;if(sub==='private'&&$('zCoin')){$('zCoin').addEventListener('change',wzView);WZ.at=0;wzView();return;}if(sub==='swap')return EXX.swap.after();if(sub==='pools')return EXX.pools.after();if(sub==='create')return EXX.create.after();
+ after(sub){if(sub==='verify'){wcPaint();wcCheck();return;}if(sub==='portfolio'){wcPaint();if(Date.now()-WC.at>300000)wcCheck();}if(!WAL.kp)return;if(sub==='private'&&$('zCoin')){$('zCoin').addEventListener('change',wzView);WZ.at=0;wzView();return;}if(sub==='swap')return EXX.swap.after();if(sub==='pools')return EXX.pools.after();if(sub==='create')return EXX.create.after();
   if(sub==='stake'){const a=$('stA');a.addEventListener('input',()=>VIEWS.wallet.update('stake'));$('stV').addEventListener('change',()=>VIEWS.wallet.update('stake'));}
   wvLoad();},
  update(sub){if(!WAL.kp)return;if(sub==='private')return wzView();if(['portfolio','stake','activity','lend'].includes(sub)&&!$({portfolio:'wTot',stake:'stK',activity:'acL',lend:'ldT'}[sub]))return;if(sub==='swap')return EXX.swap.update();if(sub==='pools')return EXX.pools.update();if(sub==='create')return EXX.create.update&&EXX.create.update();
@@ -172,3 +174,51 @@ Object.assign(LACT,{
    else if(mode==='uncol'){const a=stUnits(v,dDec(m.C));if(!a)throw new Error('Enter an amount.');const c=tx.moveCall({target:P+'withdraw_collateral',typeArguments:TP,arguments:[tx.object(m.id),tx.object(m.pool),tx.pure.u64(a),tx.object('0x6')]});tx.transferObjects([c],WAL.addr);}
    await rvSign(tx,'Done.');closeSheet();setTimeout(wvLendLoad,1800);}catch(err){e.innerHTML='<div class="errbox">'+esc(err.message)+'</div>';}},
 });
+
+/* ---------- Chain check ----------
+   The wallet checks on this device that the newest checkpoint is final: validators holding more
+   than two thirds of the voting power signed it. The validator set is trusted on the first check
+   and every later change is followed through the last checkpoint of each epoch, which the
+   outgoing validators sign and which names the next validators. The BLS work runs in
+   chain-worker.js so the page stays responsive on phones. */
+const WC={w:null,n:0,cb:{},busy:false,res:null,err:null,gap:null,at:0,diff:false};
+function wcWorker(){if(!WC.w){WC.w=new Worker('chain-worker.js');WC.w.onmessage=e=>{const c=WC.cb[e.data.id];delete WC.cb[e.data.id];if(c)e.data.err?c[1](new Error(e.data.err)):c[0](e.data.r);};WC.w.onerror=e=>{Object.values(WC.cb).forEach(c=>c[1](new Error('The checker could not start on this device.')));WC.cb={};};}return WC.w;}
+const wcVerify=job=>new Promise((ok,no)=>{const id=++WC.n;WC.cb[id]=[ok,no];wcWorker().postMessage({id,job});});
+const wcHex=b=>Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');
+async function wcCommittee(e){const m=(await LSv.getEpoch({epoch:BigInt(e),readMask:{paths:['committee']}})).response.epoch.committee.members;return m.map(x=>[wcHex(x.publicKey),String(x.weight)]);}
+async function wcCp(seq){const r=(await LSv.getCheckpoint({checkpointId:seq==null?{oneofKind:undefined}:{oneofKind:'sequenceNumber',sequenceNumber:BigInt(seq)},readMask:{paths:['summary.bcs','signature']}})).response.checkpoint;if(!r||!r.summary||!r.summary.bcs||!r.signature)throw new Error('The node did not send the checkpoint signature.');return {summary:r.summary.bcs.value,signature:r.signature.signature,bitmap:r.signature.bitmap,epoch:String(r.signature.epoch)};}
+const wcKey=c=>'rvChainTrust:'+c;
+async function wcCheck(repin){if(WC.busy)return;WC.busy=true;WC.err=null;wcPaint();const t0=performance.now();
+ try{const chain=(await LSv.getServiceInfo({})).response.chainId;let T=null;try{T=JSON.parse(lvStore.get(wcKey(chain)));}catch(e){}
+  const cp=await wcCp();const E=+cp.epoch;
+  if(!T||repin){T={epoch:E,committee:await wcCommittee(E),since:Date.now(),first:E,steps:0};lvStore.set(wcKey(chain),JSON.stringify(T));WC.gap=null;}
+  if(T.epoch>E)throw new Error('This node is behind: its newest checkpoint is in epoch '+E+', and this device has already seen epoch '+T.epoch+'. Try again later or use another node.');
+  while(T.epoch<E){let last,cpe;
+   try{last=(await LSv.getEpoch({epoch:BigInt(T.epoch),readMask:{paths:['last_checkpoint']}})).response.epoch.lastCheckpoint;cpe=await wcCp(last);}
+   catch(e){WC.gap={from:T.epoch,to:E};throw new Error('The node no longer keeps the history between epoch '+T.epoch+' and epoch '+E+', so this device cannot follow the validator changes since its last check.');}
+   const r=await wcVerify({...cpe,committee:T.committee});if(!r.nextCommittee)throw new Error('The last checkpoint of epoch '+T.epoch+' does not name the next validators.');
+   T={...T,epoch:T.epoch+1,committee:r.nextCommittee,steps:T.steps+1};lvStore.set(wcKey(chain),JSON.stringify(T));}
+  const r=await wcVerify({...cp,committee:T.committee});
+  // A node that reports a different validator set than the one the chain signed is not trusted for it.
+  try{const n=await wcCommittee(E);WC.diff=JSON.stringify(n.map(x=>x.join()).sort())!==JSON.stringify(T.committee.map(x=>x.join()).sort());}catch(e){}
+  WC.res={...r,trust:T,ms:performance.now()-t0};WC.at=Date.now();WC.gap=null;}
+ catch(e){WC.err=e.message;WC.res=null;}
+ WC.busy=false;wcPaint();}
+function wcPage(){return `<div class="g c2 ais"><div class="card hud"><div class="ch"><div class="ttl"><h2><span class="ico">${IC.shield}</span>Chain check</h2><span class="sub">Runs on this device</span></div><button class="btn sm" data-act="wccheck">Check again</button></div>
+  <div id="wcS"></div><div class="kv" id="wcK"></div><div id="wcE"></div></div>
+ <div class="card"><div class="ch"><h2>What this check proves</h2></div><div class="list">
+  <div class="li"><span class="chk ok">✓</span><span>The newest checkpoint is final. Validators holding more than two thirds of the voting power signed it, and this device checked their signature itself.</span></div>
+  <div class="li"><span class="chk ok">✓</span><span>Each change of validators since your first check was signed by the validators before it.</span></div>
+  <div class="li"><span class="chk note">!</span><span>The first check trusts the validator set that the node reports. Compare the checkpoint number with Rivers Scan or a second node once to confirm it.</span></div>
+  <div class="li"><span class="chk note">!</span><span>Balances and history on the other pages still come from the node. A dishonest node can hold back new data, but it cannot make a false checkpoint pass this check.</span></div></div>
+  <p class="muted" style="font-size:.76rem;margin-top:10px">The check uses about 1 MB of data the first time and a few kilobytes after that. It needs no wallet and works on any phone with a modern browser.</p></div></div>`;}
+function wcPaint(){const b=$('wcBadge');if(b){b.className='b dot '+(WC.res?'ok':WC.err?'warn':'');b.textContent=WC.res?'Chain verified on this device':WC.err?'Chain check needs attention':'Checking the chain…';}
+ const s=$('wcS');if(!s)return;
+ if(WC.busy&&!WC.res){s.innerHTML='<div class="big">Checking…</div><p class="fg2" style="font-size:.84rem">Fetching the newest checkpoint and the validators’ signatures.</p>';}
+ else if(WC.res){const r=WC.res,pct=Number(BigInt(r.weight)*10000n/BigInt(r.total))/100,age=Date.now()-r.timestampMs;
+  s.innerHTML='<div class="big" style="color:var(--ok);font-size:clamp(1.25rem,5vw,1.8rem)">✓ Checkpoint '+fmt(Number(r.seq),0)+' is final</div><p class="fg2" style="font-size:.84rem">Checked '+ago(WC.at)+'.'+(age>120000?' The newest checkpoint is '+ago(r.timestampMs).replace(' ago','')+' old, so the node may be behind.':'')+'</p>';
+  const T=r.trust;$('wcK').innerHTML='<div><span>Signed by</span><span>'+r.signers+' of '+r.members+' validators, '+fmt(pct,2)+'% of the voting power</span></div><div><span>Needed</span><span>More than 66.67%</span></div><div><span>Epoch</span><span>'+fmt(Number(r.epoch),0)+'</span></div><div><span>Checkpoint time</span><span>'+new Date(r.timestampMs).toLocaleString()+'</span></div><div><span>Validator set</span><span>'+(T.steps?'Followed from epoch '+T.first+' through '+T.steps+' signed '+(T.steps===1?'change':'changes'):'Trusted at the first check, epoch '+T.first)+'</span></div><div><span>First check</span><span>'+new Date(T.since).toLocaleDateString()+'</span></div><div><span>Time on this device</span><span>'+fmt(r.ms/1000,2)+' s</span></div>';
+  $('wcE').innerHTML=WC.diff?'<div class="errbox">The node reports a validator set that differs from the one the chain signed. This device keeps using the signed set. Consider another node.</div>':'';}
+ else if(WC.err){s.innerHTML='<div class="big" style="color:var(--warn);font-size:clamp(1.25rem,5vw,1.8rem)">Not verified</div>';$('wcK').innerHTML='';$('wcE').innerHTML='<div class="errbox">'+esc(WC.err)+'</div>'+(WC.gap?'<p class="fg2" style="font-size:.84rem">You can start again from the validators the node reports now. Do this only if you trust this node, or compare the checkpoint number with a second source afterwards.</p><button class="btn sm" data-act="wcrepin">Start again from now</button>':'');}}
+setInterval(()=>{if(typeof CUR!=='undefined'&&CUR.app==='wallet'&&(CUR.sub==='verify'||(CUR.sub==='portfolio'&&Date.now()-WC.at>300000))&&!document.hidden)wcCheck();else wcPaint();},30000);
+Object.assign(LACT,{wccheck(){wcCheck();},wcrepin(){wcCheck(true);}});
