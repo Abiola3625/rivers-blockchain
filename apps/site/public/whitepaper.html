@@ -9,13 +9,13 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@300;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body class="reading">
 <div class="read-glow" aria-hidden="true"></div>
 <header class="top">
-  <a class="brand" href="./" aria-label="Rivers home"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers</span></a>
+  <a class="brand" href="./" aria-label="Rivers home"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg><span>Rivers</span></a>
   <nav class="nav" aria-label="Main">
     <a href="./#products">Products</a>
     <a href="whitepaper.html" aria-current="page">Whitepaper</a>
@@ -91,11 +91,10 @@
           <tr><td>Removed after a grace period when stake falls below</td><td>5,000 RVRB</td></tr>
           <tr><td>Grace period</td><td>7 epochs</td></tr>
           <tr><td>Removed at once when stake falls below</td><td>2,500 RVRB</td></tr>
-          <tr><td>Most validators at one time</td><td>150</td></tr>
           <tr><td>Epoch length</td><td>24 hours</td></tr>
         </tbody>
       </table>
-      <p>Voting power follows stake, with a cap so that no single validator controls the committee. Each validator sets a commission, which it keeps from its delegators' rewards.</p>
+      <p>Anyone can also delegate RVRB to a validator without running a server, so participation is open to every holder. Voting power follows stake, with a cap so that no single validator controls the committee. Each validator sets a commission, which it keeps from its delegators' rewards.</p>
     </section>
 
     <section id="token">
@@ -134,7 +133,7 @@
 
     <section id="apps">
       <h2>Applications</h2>
-      <p>Each Rivers product is a separate website with its own address. All of them read the same chain and the same indexer, and link to each other.</p>
+      <p>Each Rivers product is a separate website with its own address. All of them read the same chain and the same indexer, and link to each other. The foundation's administration tools are kept separate and are not published.</p>
       <table>
         <thead><tr><th>Product</th><th>For</th><th>What it does</th></tr></thead>
         <tbody>
@@ -142,7 +141,6 @@
           <tr><td>Rivers Scan</td><td>Everyone</td><td>Live transactions, checkpoints, accounts, holders, tokens, validators, pools and daily charts. Token Studio creates a new token with optional team vesting and a starting pool.</td></tr>
           <tr><td>Rivers Connect</td><td>Banks and payment firms</td><td>Payments between member institutions, batch files, ISO 20022 pacs.008 export, liquidity conversion and a compliance view.</td></tr>
           <tr><td>Rivers Validator</td><td>Node operators</td><td>Signing record, rewards, delegators, commission and the steps to join or leave.</td></tr>
-          <tr><td>Rivers Core</td><td>The Rivers foundation</td><td>Network health, invariant checks, protocol parameters, institution admission and limits, investor vesting, market pauses and an on-chain record of every administrative action.</td></tr>
         </tbody>
       </table>
     </section>
@@ -202,13 +200,14 @@
         <li><strong>Public record.</strong> Administrative actions are on-chain transactions, so anyone can see who changed what and when.</li>
         <li><strong>Bounded settings.</strong> Lending parameters are checked against fixed limits on chain, so even the administrator cannot set an unsafe value.</li>
         <li><strong>Separate sites.</strong> Each product is its own site with a strict content security policy, so a fault in one cannot reach another's keys.</li>
+        <li><strong>Hidden administration.</strong> The administration interface is not linked from any public site. Even if someone found it, it can do nothing without the administrator's key, because every action is checked on chain.</li>
         <li><strong>Audits.</strong> The Rivers packages go through internal review and automated tests; the review is published in the repository as <code>rivers-packages/AUDIT.md</code>. An external audit is planned before mainnet.</li>
       </ul>
     </section>
 
     <section id="governance">
       <h2>Administration</h2>
-      <p>On the testnet, the administrator rights sit with the first foundation wallet. Rivers Core is the interface for using them. Protocol upgrades follow the Sui process: validators run the new software, and the new protocol version takes effect at an epoch boundary once enough stake supports it.</p>
+      <p>On the testnet, the administrator rights sit with the first foundation wallet, and the foundation uses them through an administration interface that is not public. Protocol upgrades follow the Sui process: validators run the new software, and the new protocol version takes effect at an epoch boundary once enough stake supports it.</p>
       <p>Moving the administrator rights to a multi-signature wallet held by several people is recommended before mainnet.</p>
     </section>
 
@@ -218,7 +217,7 @@
       <ul>
         <li>The Rivers chain with RVRB, the fixed supply and the reward schedule</li>
         <li>Shielded payments for RVRB and USDs</li>
-        <li>Rivers Wallet, Scan, Connect, Validator and Core as separate sites</li>
+        <li>Rivers Wallet, Scan, Connect and Validator as separate sites</li>
         <li>Indexer, Token Studio, investor vesting</li>
         <li>Rivers DEX with time-weighted prices, and Rivers Lend</li>
         <li>USDs and NGNs test stablecoins</li>
@@ -246,7 +245,7 @@
 </div>
 
 <footer class="foot">
-  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers Blockchain</span></div>
+  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg><span>Rivers Blockchain</span></div>
   <p>Built in Nigeria. Rivers is on testnet: test tokens have no value and the network may be reset.</p>
   <nav aria-label="Products">
     <a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="./">Home</a><a href="docs.html">Docs</a>

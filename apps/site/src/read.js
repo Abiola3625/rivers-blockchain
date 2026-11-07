@@ -3,6 +3,8 @@
 import { wireLinks } from './links.js';
 
 wireLinks();
+document.getElementById('menuBtn')?.addEventListener('click', () => document.body.classList.toggle('menu'));
+document.querySelectorAll('.nav a').forEach((a) => a.addEventListener('click', () => document.body.classList.remove('menu')));
 const links = [...document.querySelectorAll('.toc a')];
 const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
 const seen = new Set();

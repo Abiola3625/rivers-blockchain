@@ -2,85 +2,177 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rivers Blockchain</title>
-<meta name="description" content="Rivers is a Layer 1 blockchain built in Nigeria. Pay, save, borrow and build with RVRB, and connect banks to one shared ledger.">
-<meta name="theme-color" content="#03140D">
+<meta name="description" content="Rivers is a Layer 1 blockchain built in Nigeria. Pay, save, stake, borrow and pay privately with RVRB.">
+<meta name="theme-color" content="#020D08">
 <meta property="og:title" content="Rivers Blockchain">
-<meta property="og:description" content="A Layer 1 blockchain built in Nigeria.">
+<meta property="og:description" content="The Layer 1 blockchain built in Nigeria.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@300;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body class="home">
+<body class="home is-loading">
 <canvas id="scene" aria-hidden="true"></canvas>
-<div class="grain" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
 
-<header class="top">
-  <a class="brand" href="./" aria-label="Rivers home"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers</span></a>
+<!-- Intro: the mark draws itself, then opens into the scene. -->
+<div class="intro" id="intro" aria-hidden="true">
+  <svg class="intro-mark" viewBox="0 0 40 40"><defs><linearGradient id="ig" x1="0" x2="1"><stop offset="0" stop-color="#008751"/><stop offset="1" stop-color="#1FE58C"/></linearGradient></defs>
+    <path class="d1" d="M7 11c10 0 11 9 21 9h5" stroke="url(#ig)"/><path class="d2" d="M7 20h26" stroke="#fff"/><path class="d3" d="M7 29c10 0 11-9 21-9" stroke="url(#ig)"/></svg>
+  <div class="intro-word"><span>R</span><span>i</span><span>v</span><span>e</span><span>r</span><span>s</span></div>
+</div>
+
+<header class="top" id="top">
+  <a class="brand" href="./" aria-label="Rivers home">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#008751"/><stop offset="1" stop-color="#1FE58C"/></linearGradient></defs><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="url(#lg)" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="url(#lg)" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg>
+    <span>Rivers</span>
+  </a>
   <nav class="nav" aria-label="Main">
-    <a href="#chain">Chain</a>
+    <a href="#wallet">Wallet</a>
+    <a href="#scan">Scan</a>
+    <a href="#private">Privacy</a>
+    <a href="#network">Network</a>
     <a href="#rvrb">RVRB</a>
-    <a href="#products">Products</a>
     <a href="whitepaper.html">Whitepaper</a>
     <a href="docs.html">Docs</a>
   </nav>
-  <a class="btn small" data-link="wallet">Open wallet</a>
+  <a class="pill" data-link="wallet">Open wallet</a>
   <button class="menu-btn" id="menuBtn" aria-label="Menu"><span></span><span></span></button>
 </header>
 
 <main>
-<section id="hero" data-shape="0">
-  <div class="hero-in">
-    <p class="kicker">Built in Nigeria</p>
-    <h1 data-split>Three rivers become one chain</h1>
-    <p class="lede">Rivers is a Layer 1 blockchain for payments, savings and the banks that move naira every day. Send RVRB in seconds, swap to naira and dollar stablecoins, and build on Move.</p>
-    <div class="cta">
+<!-- 1. Hero: three rivers of light flow into one glowing core. Pinned while the camera travels in. -->
+<section id="hero">
+  <div class="hero-stage">
+    <p class="kicker"><i class="flag"></i>Built in Nigeria</p>
+    <h1 class="hero-title"><span class="line"><span>Built</span></span> <span class="line"><span>to flow.</span></span></h1>
+    <p class="hero-sub">Rivers is the Layer 1 blockchain for payments, savings and the institutions that move money every day.</p>
+    <div class="hero-cta">
       <a class="btn" data-link="wallet">Open Rivers Wallet</a>
-      <a class="btn ghost" href="whitepaper.html">Read the whitepaper</a>
+      <a class="btn glass" href="whitepaper.html">Read the whitepaper</a>
     </div>
+    <div class="live" id="live"><span class="dot"></span><span>Testnet block <b id="lvBlock">…</b></span><span><b id="lvAcc">…</b> accounts</span><span><b id="lvTx">…</b> transactions today</span></div>
   </div>
-  <div class="live" id="live" aria-live="polite">
-    <span class="dot"></span>
-    <span>Testnet block <b id="lvBlock">…</b></span>
-    <span><b id="lvAcc">…</b> accounts</span>
-    <span><b id="lvTx">…</b> transactions today</span>
-  </div>
-  <div class="scroll-cue" aria-hidden="true"><span></span></div>
+  <div class="hero-second" aria-hidden="true"><p>Three streams.</p><p>One ledger.</p><p>Settled in seconds.</p></div>
+  <div class="scroll-hint" aria-hidden="true"><span>Scroll</span><i></i></div>
 </section>
 
-<section id="chain" class="story" data-shape="1">
-  <div class="copy">
-    <h2 data-split>Every block, settled by many hands</h2>
-    <p data-rise>Rivers runs the Sui engine: Move smart contracts, an object model that lets unrelated payments execute side by side, and Mysticeti consensus among a committee of staked validators. No single company can rewrite the ledger.</p>
-    <dl class="facts" data-rise>
-      <div><dt>Validators at most</dt><dd data-count="150">150</dd></div>
-      <div><dt>Stake to join, RVRB</dt><dd data-count="10000">10,000</dd></div>
-      <div><dt>Hours in an epoch</dt><dd data-count="24">24</dd></div>
-    </dl>
-    <a class="link" href="docs.html#validators" data-rise>Run a validator</a>
+<!-- 2. Statements that swap one at a time, Apple keynote style, over the coin. -->
+<section id="rvrb" class="statements">
+  <div class="st-pin">
+    <div class="st" data-i="0"><p class="st-k">The RVRB token</p><h2><span data-count="21000000">21,000,000</span></h2><p>The most RVRB that will ever exist. Fixed in the chain's code.</p></div>
+    <div class="st" data-i="1"><p class="st-k">At launch</p><h2><span data-count="10000000">10,000,000</span></h2><p>Placed in named wallets for the ecosystem, the community, the foundation, early backers, validators and liquidity.</p></div>
+    <div class="st" data-i="2"><p class="st-k">Paid to stakers</p><h2>50 years</h2><p>The other eleven million RVRB reach stakers a little each day. The daily reward halves every five years.</p></div>
+    <div class="st-dots" aria-hidden="true"><i></i><i></i><i></i></div>
   </div>
 </section>
 
-<section id="rvrb" class="story right" data-shape="2">
-  <div class="copy">
-    <h2 data-split>Twenty-one million RVRB, never more</h2>
-    <p data-rise>Ten million RVRB exist from day one. The other eleven million are paid to stakers, a little each day, for fifty years. Every five years the daily reward halves, so new supply slows as the network grows.</p>
-    <figure class="supply" data-rise>
+<!-- 3. Kinetic type: giant verbs sweep across the screen as you scroll, over a storm of particles. -->
+<section id="wallet" class="kinetic">
+  <div class="kin-pin">
+    <p class="eyebrow-k center">Rivers Wallet</p>
+    <div class="kin-rows" aria-hidden="true">
+      <div class="kin-row r1"><span>Send</span><span class="o">Swap</span><span>Stake</span><span class="o">Shield</span><span>Send</span><span class="o">Swap</span></div>
+      <div class="kin-row r2"><span class="o">Lend</span><span>Borrow</span><span class="o">Earn</span><span>Launch</span><span class="o">Lend</span><span>Borrow</span></div>
+      <div class="kin-row r3"><span>Pay</span><span class="o">Save</span><span>Settle</span><span class="o">Flow</span><span>Pay</span><span class="o">Save</span></div>
+    </div>
+    <p class="kin-note">One wallet for all of it. <br>Your keys never leave your device.</p>
+    <a class="btn" data-link="wallet">Open Rivers Wallet</a>
+  </div>
+</section>
+
+<!-- 4. Speed: a light trail races across while the number climbs. -->
+<section id="scan" class="speed-sec">
+  <div class="speed-in">
+    <p class="eyebrow-k">Final in a moment</p>
+    <h2 class="huge"><span class="speed-n" id="speedN">0.0</span><span class="speed-u">s</span></h2>
+    <p class="lede">A payment on Rivers is final once the validator committee commits it, usually in under a second on the testnet. There are no forks to wait out and no blocks to count.</p>
+    <a class="link" data-link="explorer">Watch it live in Rivers Scan</a>
+  </div>
+</section>
+
+<!-- 5. Privacy: an amount dissolves into a proof. -->
+<section id="private" class="private-sec">
+  <div class="pv-stage">
+    <p class="eyebrow-k">Shielded payments</p>
+    <h2 class="scramble" id="scramble" data-text="₦250,000 to Amaka">₦250,000 to Amaka</h2>
+    <p class="lede">With shielded payments, the ledger records a zero-knowledge proof that the payment is valid. It does not show the amount, the sender or the receiver. Your phone makes the proof in about a second.</p>
+    <div class="pv-pills"><span>Groth16 proofs</span><span>Encrypted notes</span><span>Spend once, by design</span></div>
+  </div>
+</section>
+
+<!-- 6. Network: the globe, with Nigeria lit and validators connecting. -->
+<section id="network" class="network-sec">
+  <div class="net-copy">
+    <p class="eyebrow-k">The network</p>
+    <h2 class="big">Anyone can validate.<br>Anyone can stake.</h2>
+    <p class="lede">No permission and no gatekeeper. Run a node with enough stake and you help secure Rivers. Hold RVRB and you can delegate it to any validator and earn with them.</p>
+    <div class="net-facts">
+      <div><b>24 h</b><span>epochs</span></div>
+      <div><b>10,000</b><span>RVRB to run a validator</span></div>
+      <div><b>Any amount</b><span>to stake with one</span></div>
+    </div>
+    <a class="link" href="docs.html#validators">Run a validator</a>
+  </div>
+</section>
+
+<!-- 7. Connect: payments between institutions flow across one ledger. -->
+<section id="connect" class="connect-sec">
+  <div class="cn-copy">
+    <p class="eyebrow-k">Rivers Connect</p>
+    <h2 class="big">Banks, settled<br>on one ledger.</h2>
+    <p class="lede">Member institutions pay each other in naira stablecoin with ISO 20022 references, and export pacs.008 messages for the systems they already run.</p>
+  </div>
+  <svg class="cn-map" viewBox="0 0 900 360" aria-hidden="true">
+    <g class="cn-lines">
+      <path id="c1" d="M120 90 C 330 40, 560 60, 780 110"/><path id="c2" d="M120 90 C 300 200, 600 260, 780 270"/>
+      <path id="c3" d="M140 280 C 360 300, 520 120, 780 110"/><path id="c4" d="M140 280 C 380 230, 560 280, 780 270"/>
+      <path id="c5" d="M450 40 L 450 320"/>
+    </g>
+    <g class="cn-nodes">
+      <g transform="translate(120 90)"><circle r="26"/><text y="5">Bank A</text></g>
+      <g transform="translate(140 280)"><circle r="26"/><text y="5">Bank B</text></g>
+      <g transform="translate(780 110)"><circle r="26"/><text y="5">Bank C</text></g>
+      <g transform="translate(780 270)"><circle r="26"/><text y="5">Fintech</text></g>
+      <g class="hub" transform="translate(450 180)"><circle r="44"/><text y="-2">Rivers</text><text y="16" class="s">ledger</text></g>
+    </g>
+    <g id="cnPulses"></g>
+  </svg>
+</section>
+
+<!-- 8. Products: four doors, each its own site. -->
+<section id="products" class="products-sec">
+  <h2 class="big center">Four products.<br>One network.</h2>
+  <div class="cards">
+    <a class="card c-wallet" data-link="wallet" data-tilt><span class="card-glare"></span><p class="card-k">For everyone</p><h3>Rivers Wallet</h3><p>Hold, send, swap, stake, lend, borrow and pay privately. Your keys never leave your device.</p><span class="go">Open</span></a>
+    <a class="card c-scan" data-link="explorer" data-tilt><span class="card-glare"></span><p class="card-k">For everyone</p><h3>Rivers Scan</h3><p>The live explorer and Token Studio. Every transaction, account, token and pool.</p><span class="go">Open</span></a>
+    <a class="card c-connect" data-link="institutions" data-tilt><span class="card-glare"></span><p class="card-k">For banks and payment firms</p><h3>Rivers Connect</h3><p>Institutional payments, batch files and ISO 20022 messages on one shared ledger.</p><span class="go">Open</span></a>
+    <a class="card c-validator" data-link="validator" data-tilt><span class="card-glare"></span><p class="card-k">For node operators</p><h3>Rivers Validator</h3><p>Run a node, join the committee, set your commission and follow your rewards.</p><span class="go">Open</span></a>
+  </div>
+</section>
+
+<!-- 9. Supply, in detail. -->
+<section id="supply" class="supply-sec">
+  <div class="sup-grid">
+    <div>
+      <p class="eyebrow-k">Supply</p>
+      <h2 class="big">Slower every<br>five years.</h2>
+      <p class="lede">Era one pays 5,505,376 RVRB to stakers. Each later era pays half of the one before, until the full 21,000,000 is reached in year fifty.</p>
+    </div>
+    <figure class="supply">
       <svg viewBox="0 0 640 280" role="img" aria-labelledby="supT">
         <title id="supT">RVRB supply grows from 10 million at launch to 21 million by year 50</title>
-        <g class="grid">
-          <line x1="40" y1="20" x2="640" y2="20"/><line x1="40" y1="130" x2="640" y2="130"/><line x1="40" y1="240" x2="640" y2="240"/>
+        <g class="grid"><line x1="40" y1="20" x2="640" y2="20"/><line x1="40" y1="130" x2="640" y2="130"/><line x1="40" y1="240" x2="640" y2="240"/>
           <text x="0" y="24">21M</text><text x="0" y="134">15M</text><text x="0" y="244">9M</text>
-          <text x="40" y="270">Launch</text><text x="160" y="270">10</text><text x="280" y="270">20</text><text x="400" y="270">30</text><text x="520" y="270">40</text><text x="606" y="270">50 yrs</text>
-        </g>
+          <text x="40" y="270">Launch</text><text x="160" y="270">10</text><text x="280" y="270">20</text><text x="400" y="270">30</text><text x="520" y="270">40</text><text x="596" y="270">50 yrs</text></g>
+        <path id="supplyFill" transform="translate(40,20)" d="M0.0,220.0 L12.0,198.0 L24.0,176.0 L36.0,153.9 L48.0,131.9 L60.0,109.9 L72.0,98.9 L84.0,87.9 L96.0,76.9 L108.0,65.8 L120.0,54.8 L132.0,49.3 L144.0,43.8 L156.0,38.3 L168.0,32.8 L180.0,27.3 L192.0,24.6 L204.0,21.8 L216.0,19.1 L228.0,16.3 L240.0,13.5 L252.0,12.2 L264.0,10.8 L276.0,9.4 L288.0,8.0 L300.0,6.7 L312.0,6.0 L324.0,5.3 L336.0,4.6 L348.0,3.9 L360.0,3.2 L372.0,2.9 L384.0,2.5 L396.0,2.2 L408.0,1.8 L420.0,1.5 L432.0,1.3 L444.0,1.2 L456.0,1.0 L468.0,0.8 L480.0,0.6 L492.0,0.6 L504.0,0.5 L516.0,0.4 L528.0,0.3 L540.0,0.2 L552.0,0.2 L564.0,0.1 L576.0,0.1 L588.0,0.0 L600.0,0.0 L600,220 Z"/>
         <path id="supplyLine" transform="translate(40,20)" d="M0.0,220.0 L12.0,198.0 L24.0,176.0 L36.0,153.9 L48.0,131.9 L60.0,109.9 L72.0,98.9 L84.0,87.9 L96.0,76.9 L108.0,65.8 L120.0,54.8 L132.0,49.3 L144.0,43.8 L156.0,38.3 L168.0,32.8 L180.0,27.3 L192.0,24.6 L204.0,21.8 L216.0,19.1 L228.0,16.3 L240.0,13.5 L252.0,12.2 L264.0,10.8 L276.0,9.4 L288.0,8.0 L300.0,6.7 L312.0,6.0 L324.0,5.3 L336.0,4.6 L348.0,3.9 L360.0,3.2 L372.0,2.9 L384.0,2.5 L396.0,2.2 L408.0,1.8 L420.0,1.5 L432.0,1.3 L444.0,1.2 L456.0,1.0 L468.0,0.8 L480.0,0.6 L492.0,0.6 L504.0,0.5 L516.0,0.4 L528.0,0.3 L540.0,0.2 L552.0,0.2 L564.0,0.1 L576.0,0.1 L588.0,0.0 L600.0,0.0"/>
       </svg>
-      <figcaption>Supply in circulation and staked, by year. Era one pays 5,505,376 RVRB; each later era pays half.</figcaption>
     </figure>
-    <table class="alloc" data-rise>
+    <table class="alloc">
       <caption>The 10,000,000 RVRB at launch</caption>
       <tbody>
         <tr><th>Ecosystem and grants</th><td>4,000,000</td><td><i style="--w:40%"></i></td></tr>
@@ -94,79 +186,25 @@
   </div>
 </section>
 
-<section id="nigeria" class="story" data-shape="3">
-  <div class="copy">
-    <h2 data-split>Built at home, open to the world</h2>
-    <p data-rise>Rivers is designed and built in Nigeria. Naira and dollar stablecoins sit next to RVRB in every wallet. Banks and payment firms join Rivers Connect, send ISO 20022 payments to each other, and settle on one shared ledger instead of waiting on batch files.</p>
-    <ul class="ticks" data-rise>
-      <li>NGNs and USDs test stablecoins with a built-in exchange</li>
-      <li>Per-institution limits, suspension and an on-chain audit trail</li>
-      <li>Prices in naira across the wallet and the explorer</li>
-    </ul>
-    <a class="link" href="docs.html#connect" data-rise>Connect your institution</a>
+<!-- 10. Close. -->
+<section id="start" class="end-sec">
+  <h2 class="end-title"><span>Start</span> <span>flowing.</span></h2>
+  <div class="hero-cta center">
+    <a class="btn" data-link="wallet">Open Rivers Wallet</a>
+    <a class="btn glass" href="docs.html">Read the docs</a>
   </div>
-</section>
-
-<section id="products" data-shape="4">
-  <div class="rail-head">
-    <h2 data-split>Five doors into one network</h2>
-    <p>Each product is its own site with its own address. They read the same chain, so a payment sent in the wallet shows in Scan a moment later.</p>
-  </div>
-  <div class="rail">
-    <article class="panel p-wallet">
-      <h3>Rivers Wallet</h3>
-      <p>Your keys stay on your device. Hold RVRB and stablecoins, swap, stake with a validator, lend and borrow, and claim vested tokens.</p>
-      <ul><li>Twelve recovery words, encrypted with your password</li><li>Swap, pools, lending and private payments</li><li>Locks itself after fifteen minutes</li></ul>
-      <a class="btn" data-link="wallet">Open the wallet</a>
-    </article>
-    <article class="panel p-scan">
-      <h3>Rivers Scan</h3>
-      <p>Watch every transaction land in real time. Look up any address, token, validator or pool, and launch your own token in Token Studio.</p>
-      <ul><li>Live transaction view</li><li>Holders, rich list and daily charts</li><li>Token Studio with vesting and a starting pool</li></ul>
-      <a class="btn" data-link="explorer">Open Scan</a>
-    </article>
-    <article class="panel p-connect">
-      <h3>Rivers Connect</h3>
-      <p>For banks and payment firms. Pay another member in naira stablecoin, upload a batch file, and export pacs.008 messages for your core banking system.</p>
-      <ul><li>Single and batch payments</li><li>Liquidity conversion</li><li>Compliance view and developer keys</li></ul>
-      <a class="btn" data-link="institutions">Open Connect</a>
-    </article>
-    <article class="panel p-validator">
-      <h3>Rivers Validator</h3>
-      <p>Run a node, join the committee and earn a share of each day's rewards. Set your commission and see your delegators.</p>
-      <ul><li>One-command server setup</li><li>Rewards and signing record</li><li>Join, update and leave</li></ul>
-      <a class="btn" data-link="validator">Open Validator</a>
-    </article>
-    <article class="panel p-core">
-      <h3>Rivers Core</h3>
-      <p>The control room for the Rivers foundation. Every action is signed on chain by the administrator key, so the record is public.</p>
-      <ul><li>Health, alerts and invariant checks</li><li>Admit and limit institutions</li><li>Investor vesting and market pauses</li></ul>
-      <a class="btn ghost" data-link="console">Open Core</a>
-    </article>
-    <article class="panel p-next">
-      <h3>Pay privately</h3>
-      <p>Shielded payments hide the amount and the receiver with zero-knowledge proofs, made on your own device. Live on the testnet in Rivers Wallet. A bridge to Ethereum is being built next.</p>
-      <a class="btn ghost" href="whitepaper.html#roadmap">See the roadmap</a>
-    </article>
-  </div>
-</section>
-
-<section id="build" class="closing">
-  <h2 data-split>Read it, run it, build on it</h2>
   <div class="doors">
-    <a href="whitepaper.html" data-rise><b>Whitepaper</b><span>How Rivers works, the token, security and the roadmap.</span></a>
-    <a href="docs.html" data-rise><b>Documentation</b><span>Wallet, validators, Connect, Move packages and the indexer API.</span></a>
-    <a href="https://github.com/Abiola3625/rivers-blockchain" rel="noopener" data-rise><b>Source code</b><span>The full chain, apps and packages on GitHub.</span></a>
+    <a href="whitepaper.html"><b>Whitepaper</b><span>How Rivers works, the token, security and the roadmap.</span></a>
+    <a href="docs.html"><b>Documentation</b><span>Wallet, validators, Connect, Move packages and the indexer API.</span></a>
+    <a href="https://github.com/Abiola3625/rivers-blockchain" rel="noopener"><b>Source code</b><span>The chain, the apps and the packages, open on GitHub.</span></a>
   </div>
 </section>
 </main>
 
 <footer class="foot">
-  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers Blockchain</span></div>
+  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg><span>Rivers Blockchain</span></div>
   <p>Built in Nigeria. Rivers is on testnet: test tokens have no value and the network may be reset.</p>
-  <nav aria-label="Products">
-    <a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="whitepaper.html">Whitepaper</a><a href="docs.html">Docs</a>
-  </nav>
+  <nav aria-label="Products"><a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="whitepaper.html">Whitepaper</a><a href="docs.html">Docs</a></nav>
 </footer>
 <script src="config.js"></script>
 <script src="main.js" type="module"></script>

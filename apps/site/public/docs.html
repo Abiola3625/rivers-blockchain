@@ -9,13 +9,13 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@300;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body class="reading">
 <div class="read-glow" aria-hidden="true"></div>
 <header class="top">
-  <a class="brand" href="./" aria-label="Rivers home"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers</span></a>
+  <a class="brand" href="./" aria-label="Rivers home"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg><span>Rivers</span></a>
   <nav class="nav" aria-label="Main">
     <a href="./#products">Products</a>
     <a href="whitepaper.html">Whitepaper</a>
@@ -58,7 +58,6 @@
           <tr><td><a data-link="explorer">Rivers Scan</a></td><td>Look up transactions, accounts, tokens, validators and pools; launch a token</td></tr>
           <tr><td><a data-link="institutions">Rivers Connect</a></td><td>Send institution payments (members only)</td></tr>
           <tr><td><a data-link="validator">Rivers Validator</a></td><td>Run and manage a validator</td></tr>
-          <tr><td><a data-link="console">Rivers Core</a></td><td>Administer the network (foundation only)</td></tr>
         </tbody>
       </table>
       <p>Each site reads the network address from its own settings. A site can also be pointed at another network with <code>?rpc=</code>, <code>&amp;faucet=</code> and <code>&amp;indexer=</code> in its address, which is how developers use a local network.</p>
@@ -256,7 +255,7 @@ let (a_total, b_total) = pool::cumulative_prices(&amp;pool, &amp;clock);
 </div>
 
 <footer class="foot">
-  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 11c8 0 12 9 17 9s9-9 17-9" /><path class="w" d="M3 20h34"/><path d="M3 29c8 0 12-9 17-9s9 9 17 9"/></svg><span>Rivers Blockchain</span></div>
+  <div class="foot-brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#05170E"/><path d="M7 11c10 0 11 9 21 9h5" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M7 20h26" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/><path d="M7 29c10 0 11-9 21-9" stroke="#1FE58C" stroke-width="3.2" fill="none" stroke-linecap="round"/></svg><span>Rivers Blockchain</span></div>
   <p>Built in Nigeria. Rivers is on testnet: test tokens have no value and the network may be reset.</p>
   <nav aria-label="Products">
     <a data-link="wallet">Wallet</a><a data-link="explorer">Scan</a><a data-link="institutions">Connect</a><a data-link="validator">Validator</a><a href="./">Home</a><a href="whitepaper.html">Whitepaper</a>
