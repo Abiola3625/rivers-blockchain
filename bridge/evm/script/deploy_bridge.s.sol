@@ -45,11 +45,9 @@ contract DeployBridge is Script {
             && chainIDHash != keccak256(abi.encode("1"));
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/deploy_configs/", chainID, ".json");
-        // If this is local deployment, we override the path if OVERRIDE_CONFIG_PATH is set.
-        // This is useful in integration tests where config path is not fixed.
-        if (isLocal) {
-            path = vm.envOr("OVERRIDE_CONFIG_PATH", path);
-        }
+        // OVERRIDE_CONFIG_PATH replaces the default config on every chain. Rivers deploys its own
+        // committee and token list to Sepolia this way.
+        path = vm.envOr("OVERRIDE_CONFIG_PATH", path);
 
         console.log("config path: ", path);
         DeployConfig memory deployConfig = parseDeployConfig(path);
